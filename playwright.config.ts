@@ -1,23 +1,28 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Browser flows (`yarn test:e2e`). Deliberately minimal for now — the
- * keyboard-only walkthrough and the network-egress guard land later; this
- * exists so the script in package.json points at a real, runnable config
- * rather than being decorative.
+ * Browser flows (`yarn test:e2e`). Two specs, both of them acceptance criteria
+ * this demo would otherwise have to claim rather than demonstrate:
+ * `keyboard-flow` completes an application without a mouse, and
+ * `no-data-egress` proves that filling it in puts nothing on the network.
  *
  * `webServer` builds and serves the production output rather than running
  * `next dev`: the flows this demo cares about (a11y, no network egress,
  * Lighthouse-adjacent behaviour) are properties of the shipped bundle, and
- * dev-mode overlays and unminified React would mask them.
+ * dev-mode overlays and unminified React would mask them. `reuseExistingServer`
+ * locally, so a `yarn start` already running is used as-is instead of costing a
+ * rebuild on every run; CI always builds its own.
  *
- * NOTE: e2e/ is empty right now, so `yarn test:e2e` exits 1 with "No tests
- * found". That is on purpose and `--pass-with-no-tests` is deliberately NOT
- * set. An e2e suite quietly reporting success with zero specs is the exact
- * failure this whole file exists to prevent -- these flows are what prove the
- * deployed artifact works, and losing them all should be loud. (vitest.config
- * does set passWithNoTests, because a unit suite is grown continuously and a
- * red `yarn test` from commit one is just noise.)
+ * `--pass-with-no-tests` is deliberately NOT set. An e2e suite quietly
+ * reporting success with zero specs is the exact failure this file exists to
+ * prevent — these flows are what prove the deployed artifact works, and losing
+ * them all should be loud. (vitest.config does set passWithNoTests, because a
+ * unit suite is grown continuously and a red `yarn test` from commit one is
+ * just noise.)
+ *
+ * Helpers live in `e2e/support/`, which the default `testMatch` — `*.spec.ts` /
+ * `*.test.ts` — does not collect, so they are imported and never run as empty
+ * suites.
  */
 export default defineConfig({
   testDir: "./e2e",

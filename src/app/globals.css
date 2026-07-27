@@ -116,6 +116,16 @@
  * Outcome colours are desaturated on purpose — ochre, forest, brick — so a
  * failed check reads as a considered judgement rather than a traffic light.
  * Every text-weight value clears 4.5:1 on both `--background` and `--card`.
+ *
+ * `--border` and `--input` are two different jobs and are held to two different
+ * bars. `--border` separates things that are already distinguishable — a card
+ * edge, a rule between rows — and WCAG asks nothing of it, so it stays a
+ * hairline. `--input` draws the boundary of a control, and every control in
+ * this interface is transparent-filled on a near-white page, so that boundary
+ * is the only thing saying "you can type here". SC 1.4.11 (non-text contrast)
+ * requires 3:1 for exactly that, measured against whatever the control sits on
+ * — `--card` inside a panel, `--background` outside one. Both ratios are
+ * asserted in `theme.test.ts`; do not lighten this token without rerunning it.
  */
 :root {
   color-scheme: light;
@@ -141,8 +151,8 @@
   --success-surface: oklch(0.9527 0.0124 157); /* #E9F2EC */
   --warning: oklch(0.5087 0.1017 70.44); /* #8A5A14 ochre */
   --warning-surface: oklch(0.9663 0.0216 83.26); /* #FBF3E4 */
-  --border: oklch(0.9067 0.0043 197.08); /* #DDE1E1 hairline */
-  --input: oklch(0.8437 0.0066 197.03); /* #C7CDCD — control borders carry more weight */
+  --border: oklch(0.9067 0.0043 197.08); /* #DDE1E1 hairline — 1.32:1 on card, decorative */
+  --input: oklch(0.635 0.0066 197.03); /* #868C8C — 3.42:1 on card, 3.19:1 on background */
   --ring: oklch(0.4313 0.0693 192.17);
 
   /* Unused by this demo; kept in the family so nothing stray can render off-palette. */
@@ -179,52 +189,10 @@
 }
 
 /*
- * Not wired — nothing adds `.dark`. Maintained anyway so that if a theme
- * toggle is ever added, or a `dark:` utility inside the engine fires for a
- * reason nobody predicted, what appears is this palette and not the vendored
- * default (whose sidebar accent is a saturated violet).
+ * The dark palette is not here. It has to be declared *after* the vendored
+ * block below, which ships its own `.dark`, so it lives at the top of the
+ * Meridian override section — see "Dark palette" there.
  */
-.dark {
-  color-scheme: dark;
-
-  --background: oklch(0.1934 0.0083 214);
-  --foreground: oklch(0.9403 0.0037 207);
-  --card: oklch(0.2334 0.0091 212);
-  --card-foreground: oklch(0.9403 0.0037 207);
-  --popover: oklch(0.2334 0.0091 212);
-  --popover-foreground: oklch(0.9403 0.0037 207);
-  --primary: oklch(0.7233 0.0791 187);
-  --primary-foreground: oklch(0.1934 0.0083 214);
-  --primary-hover: oklch(0.7833 0.0721 187);
-  --secondary: oklch(0.2834 0.0091 212);
-  --secondary-foreground: oklch(0.9403 0.0037 207);
-  --muted: oklch(0.2834 0.0091 212);
-  --muted-foreground: oklch(0.7183 0.0117 209);
-  --accent: oklch(0.3134 0.0231 195);
-  --accent-foreground: oklch(0.9403 0.0037 207);
-  --destructive: oklch(0.7043 0.1189 30);
-  --destructive-surface: oklch(0.2834 0.0431 30);
-  --success: oklch(0.7143 0.0791 158);
-  --success-surface: oklch(0.2734 0.0331 158);
-  --warning: oklch(0.7643 0.0991 78);
-  --warning-surface: oklch(0.2834 0.0391 78);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 20%);
-  --ring: oklch(0.7233 0.0791 187);
-  --chart-1: oklch(0.7233 0.0791 187);
-  --chart-2: oklch(0.7183 0.0117 209);
-  --chart-3: oklch(0.7143 0.0791 158);
-  --chart-4: oklch(0.7643 0.0991 78);
-  --chart-5: oklch(0.7043 0.1189 30);
-  --sidebar: oklch(0.2334 0.0091 212);
-  --sidebar-foreground: oklch(0.9403 0.0037 207);
-  --sidebar-primary: oklch(0.7233 0.0791 187);
-  --sidebar-primary-foreground: oklch(0.1934 0.0083 214);
-  --sidebar-accent: oklch(0.3134 0.0231 195);
-  --sidebar-accent-foreground: oklch(0.9403 0.0037 207);
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.7233 0.0791 187);
-}
 
 @layer base {
   * {
@@ -349,6 +317,72 @@
    ========================================================================== */
 
 /*
+ * Dark palette.
+ *
+ * Not wired — nothing in this demo adds `.dark`. Maintained anyway so that if a
+ * theme toggle is ever added, or a `dark:` utility inside the engine fires for
+ * a reason nobody predicted, what appears is this palette and not the vendored
+ * default (whose brand accent is a saturated violet).
+ *
+ * It sits here, and not up beside `:root`, because the vendored block declares
+ * a `.dark` of its own. Two rules of equal specificity, both unlayered: the
+ * later one wins. Declared before the vendored block this would have lost
+ * every token they share — which is the exact outcome the paragraph above is
+ * about, and it was the bug: the violet `--accent-brand` won in dark mode from
+ * a block whose comment said it would not. Inert while nothing adds the class,
+ * wrong the moment something does.
+ */
+.dark {
+  color-scheme: dark;
+
+  --background: oklch(0.1934 0.0083 214);
+  --foreground: oklch(0.9403 0.0037 207);
+  --card: oklch(0.2334 0.0091 212);
+  --card-foreground: oklch(0.9403 0.0037 207);
+  --popover: oklch(0.2334 0.0091 212);
+  --popover-foreground: oklch(0.9403 0.0037 207);
+  --primary: oklch(0.7233 0.0791 187);
+  --primary-foreground: oklch(0.1934 0.0083 214);
+  --primary-hover: oklch(0.7833 0.0721 187);
+  --secondary: oklch(0.2834 0.0091 212);
+  --secondary-foreground: oklch(0.9403 0.0037 207);
+  --muted: oklch(0.2834 0.0091 212);
+  --muted-foreground: oklch(0.7183 0.0117 209);
+  --accent: oklch(0.3134 0.0231 195);
+  --accent-foreground: oklch(0.9403 0.0037 207);
+  --destructive: oklch(0.7043 0.1189 30);
+  --destructive-surface: oklch(0.2834 0.0431 30);
+  --success: oklch(0.7143 0.0791 158);
+  --success-surface: oklch(0.2734 0.0331 158);
+  --warning: oklch(0.7643 0.0991 78);
+  --warning-surface: oklch(0.2834 0.0391 78);
+  --border: oklch(1 0 0 / 12%);
+  /* #697476 — 3.46:1 on `--card`, the same bar the light control border is held to. */
+  --input: oklch(0.55 0.0128 209);
+  --ring: oklch(0.7233 0.0791 187);
+  --chart-1: oklch(0.7233 0.0791 187);
+  --chart-2: oklch(0.7183 0.0117 209);
+  --chart-3: oklch(0.7143 0.0791 158);
+  --chart-4: oklch(0.7643 0.0991 78);
+  --chart-5: oklch(0.7043 0.1189 30);
+  --sidebar: oklch(0.2334 0.0091 212);
+  --sidebar-foreground: oklch(0.9403 0.0037 207);
+  --sidebar-primary: oklch(0.7233 0.0791 187);
+  --sidebar-primary-foreground: oklch(0.1934 0.0083 214);
+  --sidebar-accent: oklch(0.3134 0.0231 195);
+  --sidebar-accent-foreground: oklch(0.9403 0.0037 207);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.7233 0.0791 187);
+
+  /* The engine's own brand tokens, off the violet and onto the one accent. */
+  --accent-brand: oklch(0.3134 0.0231 195);
+  --accent-brand-hover: oklch(0.3534 0.0281 195);
+  --accent-brand-solid: oklch(0.7233 0.0791 187);
+  --accent-brand-solid-hover: oklch(0.7833 0.0721 187);
+  --accent-brand-foreground: oklch(0.1934 0.0083 214);
+}
+
+/*
  * The engine's size scale, converted from fluid `vw` to static `rem`.
  *
  * Measured before changing: the vendored values are three viewport-relative
@@ -365,13 +399,16 @@
  * the same value, which turns the engine's `tablet:` and `desktop:` variants
  * into no-ops rather than jumps.
  *
- * Two deliberate departures from the arithmetic:
- *   - `--fb-space-18` (36px) drives exactly one thing, the phone field's
- *     control shell, and is lifted to 44px so it lines up with every other
- *     control.
- *   - The desktop band of the two block-separation tokens is opened up, since
- *     a wide screen is where "generous" is affordable. They are the only
- *     tokens whose three bands differ.
+ * One deliberate departure from the arithmetic: the desktop band of the two
+ * block-separation tokens is opened up, since a wide screen is where
+ * "generous" is affordable. They are the only tokens whose three bands differ.
+ *
+ * Every other token keeps its number honest. `--fb-space-18` was briefly 44px
+ * here, to lift the phone field's control shell — the one thing that reads it
+ * — up to the height of every other control. That made a token called 18
+ * larger than the token called 20, which is a trap for whoever next picks one
+ * by number. The shell is raised through the seam instead (see `.PhoneInput`
+ * below) and 18 is back to 18 × 2px.
  */
 :root {
   --fb-space-1: 0.125rem;
@@ -415,9 +452,9 @@
   --fb-space-16: 2rem;
   --fb-space-16-tablet: 2rem;
   --fb-space-16-desktop: 2rem;
-  --fb-space-18: 2.75rem;
-  --fb-space-18-tablet: 2.75rem;
-  --fb-space-18-desktop: 2.75rem;
+  --fb-space-18: 2.25rem;
+  --fb-space-18-tablet: 2.25rem;
+  --fb-space-18-desktop: 2.25rem;
   --fb-space-20: 2.5rem;
   --fb-space-20-tablet: 2.5rem;
   --fb-space-20-desktop: 2.5rem;
@@ -485,10 +522,19 @@
    The engine's own components read `--fb-space-*`, so the block above retunes
    them. The shadcn primitives underneath them do not: the vendored copies of
    input, button, label, select and the rest carry the same fluid `vw` numbers
-   as literals, ~90 of them, and `src/form-builder/` is not editable from this
-   repo. They are reached the way the engine documents — through the
-   `data-slot` attribute every primitive exposes, which `FieldWrapper` names
-   explicitly as the consumer restyling hook.
+   as literals — 746 of them across 14 of the 15 files in
+   `components/ui/`, none routed through a token (counted by matching
+   /[0-9.]+vw/ and subtracting any inside a `var(--fb-space-…, Nvw)` fallback;
+   there were none) — and `src/form-builder/` is not editable from this repo.
+   They are reached the way the engine documents: through the `data-slot`
+   attribute every primitive exposes, which `FieldWrapper` names explicitly as
+   the consumer restyling hook.
+
+   Every `[data-slot="…"]` name used below is checked against the engine by
+   `theme.test.ts`, so a re-vendor that renames a slot fails a test instead of
+   quietly restoring 21px inputs. Two rules cannot use a slot and say so where
+   they are: the button block (Radix `asChild` overwrites `data-slot`) and the
+   container radius at the end of this section.
 
    These rules are unlayered, so they win over Tailwind's `@layer utilities`
    without needing specificity tricks. They set geometry and type only; every
@@ -533,7 +579,13 @@
   letter-spacing: 0.01em;
   padding: 0.1875rem 0.375rem;
   border-radius: var(--radius-sm);
-  border-color: var(--accent);
+  /*
+   * A quarter-strength mix of the badge's own ink into its own fill. Enough to
+   * read as a drawn edge next to the label's baseline, not enough to compete
+   * with the label — the previous value was `var(--accent)`, the same colour as
+   * the fill, which is a border declaration that draws nothing.
+   */
+  border-color: color-mix(in oklch, var(--accent-foreground) 25%, var(--accent));
   background-color: var(--accent);
   color: var(--accent-foreground);
 }
@@ -595,23 +647,28 @@
 /* --- Buttons ------------------------------------------------------------- */
 
 /*
- * Matched on the CVA marker class rather than on `data-slot` alone, because
- * `data-slot` is not reliable here: the date and country fields render their
- * Button through a Radix `asChild` trigger, which replaces `data-slot="button"`
- * with `data-slot="popover-trigger"` while keeping every button class. Keyed on
- * `data-slot` only, those two controls stayed 21px tall while every other
- * control was 44px. `group/button` is on the base class and survives the merge.
+ * `[data-variant][data-size]` is the button, and nothing else in the engine is.
  *
- * `height: auto` releases the vendored `vw` height and `min-height` restores it
- * as a floor. `min-width` does the same job for an icon-only button, whose
- * `size-[…]` would otherwise leave it 44px tall and 11px wide — and unlike a
- * `width` declaration it leaves a `w-full` trigger full width.
+ * `data-slot` alone is not reliable here. The date, country and phone fields
+ * render their Button through a Radix `asChild` trigger, and `button.tsx`
+ * writes `data-slot` *before* spreading `{...props}` — so the trigger's
+ * `data-slot="popover-trigger"` lands last and wins. Keyed on `data-slot`,
+ * those three controls stayed 21px tall while every other control was 44px.
+ * `data-variant` and `data-size` (`button.tsx:61-62`) survive the same merge,
+ * because no Radix trigger sets either.
+ *
+ * Why both attributes and not just `data-size`: `select-trigger`, `switch` and
+ * `input-group` also carry a `data-size`, and `field-legend` carries a
+ * `data-variant`. Only `Button` carries both. `theme.test.ts` renders a Button
+ * inside a `PopoverTrigger asChild` and asserts exactly that, so a re-vendor
+ * that drops either attribute fails a test rather than silently un-styling
+ * three controls.
+ *
+ * `height: auto` releases the vendored `vw` height; `min-height` below restores
+ * one as a floor.
  */
-[data-slot="button"],
-[class~="group/button"] {
+[data-variant][data-size] {
   height: auto;
-  min-height: var(--control-height);
-  min-width: var(--control-height);
   border-radius: var(--radius-lg);
   font-size: var(--text-ui);
   line-height: var(--text-ui--line-height);
@@ -619,15 +676,69 @@
 }
 
 /*
- * Horizontal padding is the discriminator: the CVA base class carries none,
- * and only the text sizes (default / xs / sm / lg) add `px-[…]`. So this
- * matches every button with a label and no icon-only one.
+ * The target floor, stated as a design decision rather than smuggled into the
+ * geometry rule above.
+ *
+ * 44px is the comfortable target from the same argument as `--control-height`:
+ * a form filled in on a phone with a passport in the other hand. Applying it to
+ * every size would flatten four size variants into one height, so the small
+ * sizes get 36px instead — still half again the 24px SC 2.5.8 (AA) minimum, and
+ * they are only used for secondary controls inside a field (the input-group's
+ * clear button, the file row's remove button).
+ *
+ * `variant="link"` is excluded outright: it renders as underlined inline text,
+ * and a 44px box around a text link is not a target, it is a gap. Where a link
+ * button is the sole action on a screen it should be a real button instead.
+ *
+ * `min-width` matches `min-height` so an icon-only button — whose `size-[…]`
+ * sets both — comes out square rather than 44px tall and 11px wide. Unlike a
+ * `width` declaration it still leaves a `w-full` trigger full width.
  */
-[class~="group/button"][class*="px-["] {
+[data-variant][data-size]:not([data-variant="link"]) {
+  min-height: var(--control-height);
+  min-width: var(--control-height);
+}
+
+/*
+ * `:not(…)` is repeated rather than dropped: it carries the specificity of its
+ * argument, so without it this pair would score one lower than the rule above
+ * and lose to it.
+ */
+[data-variant][data-size$="xs"]:not([data-variant="link"]),
+[data-variant][data-size$="sm"]:not([data-variant="link"]) {
+  min-height: var(--control-height-sm);
+  min-width: var(--control-height-sm);
+}
+
+/*
+ * A labelled button gets real horizontal padding; an icon-only one stays square
+ * and a link stays inline text. The size names carry that distinction already
+ * — `icon`, `icon-xs`, `icon-sm`, `icon-lg` are the icon-only set — so this
+ * reads the intent rather than inferring it from which utilities the CVA
+ * happened to emit.
+ */
+[data-variant][data-size]:not([data-size^="icon"], [data-variant="link"]) {
   padding-inline: 1rem;
 }
 
-[class~="group/button"] svg:not([class*="size-"]) {
+/*
+ * The `outline` variant borders in `--border`, the decorative hairline, at
+ * 1.32:1. It is what the date and country pickers render as, so it is a control
+ * and its edge is the only thing identifying it as one — SC 1.4.11 again. Point
+ * it at the control token so it matches the input beside it, in weight as well
+ * as in conformance.
+ */
+[data-variant="outline"][data-size] {
+  border-color: var(--input);
+}
+
+/*
+ * Mirrors the engine's own `[&_svg:not([class*='size-'])]` convention: an icon
+ * that was given an explicit size keeps it, anything else gets 16px. Coupled to
+ * the engine's idiom on purpose — if that idiom changes, the engine's own icon
+ * sizing changes with it and this rule is the least of it.
+ */
+[data-variant][data-size] svg:not([class*="size-"]) {
   width: 1rem;
   height: 1rem;
 }
@@ -737,12 +848,48 @@
   height: 1rem;
 }
 
+/* --- Composed containers -------------------------------------------------- */
+
 /*
- * A handful of engine containers — the phone shell, the review card, the file
- * dropzone — take their radius from `--fb-space-4`, which is a spacing token
- * and cannot be shrunk to 3px without collapsing every gap that shares it.
- * Matching on the token name is exact and survives a re-vendor, since the
- * class string it matches is generated from the same token.
+ * A handful of engine containers take their radius from `--fb-space-4` or `-5`,
+ * which are spacing tokens and cannot be shrunk to 3px without collapsing every
+ * gap that shares them. Two of the three have a stable hook, so they use it.
+ */
+
+/*
+ * The phone field's control shell. `.PhoneInput` is `react-phone-number-input`'s
+ * own root class, not a generated one — the engine passes `className` and the
+ * library concatenates it onto its own. So this is a dependency's public API,
+ * not a Tailwind spelling, and it survives a re-vendor of the engine.
+ *
+ * The height is here rather than in `--fb-space-18` because that token is
+ * shared arithmetic: 18 has to stay 18 × 2px (see the scale block above), and
+ * this shell is the only thing that wants 44px out of it.
+ */
+.PhoneInput {
+  height: var(--control-height);
+  border-radius: var(--radius-lg);
+}
+
+[data-slot="file-dropzone"] {
+  border-radius: var(--radius-lg);
+  /* A drop target is a control: 1.4.11 applies to its edge as much as an input's. */
+  border-color: var(--input);
+}
+
+/*
+ * KNOWN FRAGILE. The review step's answer cards and the unknown-field error box
+ * carry no `data-slot` and no library class, so the only thing left to match is
+ * the utility the engine generated from the token —
+ * `rounded-[var(--fb-space-4,2.136vw)]`. It is exact today.
+ *
+ * The trigger that breaks it: a re-vendor that stops routing that radius
+ * through the token, e.g. `rounded-[var(--fb-space-4,…)]` becoming `rounded-md`
+ * or a literal `rounded-[2.136vw]`. Nothing then matches, no test fails, and
+ * those two containers quietly go back to an 8px radius on a page where
+ * everything else is 3px. It is cosmetic drift on two containers, which is why
+ * it is tolerated rather than solved by forking the engine — but it is the one
+ * selector in this file that is guessing.
  */
 [class*="rounded-[var(--fb-space-4"],
 [class*="rounded-[var(--fb-space-5"] {
@@ -765,11 +912,15 @@
  * list is not keyboard-reachable and painting a ring around it drew a box
  * around the whole rail on arrival, which read as a rendering fault. Focus
  * indicators belong on things a visitor can tab to.
+ *
+ * No `border-radius` here. An earlier version set one, which changed an input's
+ * corners from 3px to 1.8px at the moment it was focused — a control that
+ * subtly changes shape when you tab into it. `outline` already follows the
+ * element's own radius, so there was nothing to fix.
  */
 :where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
 }
 
 /*

@@ -83,6 +83,17 @@ describe("sample data validates against the schema the engine builds", () => {
     expect(sampleValues({ country: "JP", accountType: "individual" }).country).toBe("JP");
   });
 
+  it("does not fill a Japanese application with a French nationality", () => {
+    const values = sampleValues({ country: "JP", accountType: "individual" });
+    expect(values.nationality).toBe("JP");
+    expect(values.default_taxResidency).toBe("JP");
+    expect(sampleValues({ country: "JP", accountType: "corporate" }).default_incorporationCountry).toBe("JP");
+  });
+
+  it("leaves a configured jurisdiction's own nationality alone", () => {
+    expect(sampleValues({ country: "DE", accountType: "individual" }).nationality).toBe("DE");
+  });
+
   it("shows a configured jurisdiction when nothing has been chosen yet", () => {
     const values = sampleValues({});
     expect(values.country).toBe("DE");

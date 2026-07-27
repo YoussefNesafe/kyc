@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { getCountries } from "libphonenumber-js";
 import { draftConfigHash } from "@/form-builder/core/autosave";
 import { getVisibleFields, stripInvisibleValues } from "@/form-builder/core/conditions";
 import { defaultMessages } from "@/form-builder/core/messages";
 import { buildResolverSchema } from "@/form-builder/core/validation";
 import { validateFormConfig } from "@/form-builder/core/schema";
-import type { AnyFieldConfig, FormValues } from "@/form-builder/core/types";
+import type { AnyFieldConfig, Condition, FormValues } from "@/form-builder/core/types";
 import { buildFormConfig } from "./buildFormConfig";
+import { corporateFields } from "./fields/corporate";
+import { individualFields } from "./fields/individual";
 import { STEP_SLUGS, slugForStepIndex, stepIndexForSlug } from "./steps";
 
 /** Pinned so the age cutoff — and therefore the config hash — cannot drift with the calendar. */
@@ -87,13 +90,25 @@ describe("buildFormConfig", () => {
     ]);
   });
 
-  it("guards the fallback on every configured country being unselected", () => {
-    expect(field("default_tin").visibleWhen).toEqual([
-      { field: "country", notEquals: "DE" },
-      { field: "country", notEquals: "US" },
-      { field: "country", notEquals: "AE" },
-      { field: "accountType", equals: "individual" },
-    ]);
+  it("guards the fallback on membership of every country the registry does not claim", () => {
+    const guard = field("default_tin").visibleWhen as Condition[];
+    expect(guard).toHaveLength(2);
+    expect(guard[1]).toEqual({ field: "accountType", equals: "individual" });
+
+    const countries = guard[0].in as string[];
+    expect(guard[0].field).toBe("country");
+    expect(countries).toContain("FR");
+    expect(countries).toContain("JP");
+    expect(countries).not.toContain("DE");
+    expect(countries).not.toContain("US");
+    expect(countries).not.toContain("AE");
+  });
+
+  it("draws the fallback's country list from the same source the country field validates against", () => {
+    const guard = field("default_tin").visibleWhen as Condition[];
+    const countries = guard[0].in as string[];
+    const expected = (getCountries() as string[]).filter((code) => !["DE", "US", "AE"].includes(code));
+    expect([...countries].sort()).toEqual([...expected].sort());
   });
 
   it("badges every jurisdiction-conditional field, and says required only when it is", () => {
@@ -120,13 +135,29 @@ describe("buildFormConfig", () => {
   });
 
   it("renders the fallback notice as a field, guarded like the fallback it explains", () => {
-    const notice = config.fields.find((f) => f.type === "static" && typeof (f as { content?: string }).content === "string" && (f as { content: string }).content.includes("standard self-declaration"));
+    const notice = config.fields.find(
+      (f) =>
+        f.type === "static" &&
+        typeof (f as { content?: string }).content === "string" &&
+        (f as { content: string }).content.includes("standard self-declaration"),
+    );
     expect(notice).toBeDefined();
-    expect(notice!.visibleWhen).toEqual([
-      { field: "country", notEquals: "DE" },
-      { field: "country", notEquals: "US" },
-      { field: "country", notEquals: "AE" },
-    ]);
+
+    const guard = notice!.visibleWhen as Condition[];
+    expect(guard).toHaveLength(1);
+    expect(guard[0].field).toBe("country");
+    expect(guard[0].in).toContain("FR");
+    expect(guard[0].in).not.toContain("DE");
+  });
+
+  it("declares no guard of its own in the branch files either — the builder owns that", () => {
+    const branch = [individualFields(REFERENCE), corporateFields(REFERENCE)];
+    for (const { personalFields, documentFields } of branch) {
+      for (const f of [...personalFields, ...documentFields]) {
+        expect(f.visibleWhen, `${f.name} declares a visibleWhen the builder would overwrite`).toBeUndefined();
+        expect(f.badge, `${f.name} declares a badge`).toBeUndefined();
+      }
+    }
   });
 
   it("has a stable hash across calls, so drafts survive", () => {
@@ -169,8 +200,26 @@ describe("what the visitor sees", () => {
     expect(fr).not.toContain("de_steuerId");
   });
 
-  it("falls back before a country has been chosen, matching resolveJurisdiction(undefined)", () => {
-    expect(visibleNames({ accountType: "individual" })).toContain("default_tin");
+  it("asks nothing jurisdictional before a country has been chosen", () => {
+    const nothingChosen = visibleNames({ accountType: "individual" });
+    expect(nothingChosen).toContain("country");
+    expect(nothingChosen).not.toContain("default_tin");
+    expect(nothingChosen).not.toContain("de_steuerId");
+  });
+
+  it("does not demand fields that vanish the moment a country is picked", () => {
+    // Pressing Continue on an untouched tax step must name the country field
+    // and nothing else — an error summary listing three fallback fields that
+    // disappear on the next click is worse than no summary.
+    const schema = buildResolverSchema(config, defaultMessages, undefined, { accountType: "individual" });
+    const result = schema.safeParse({ accountType: "individual" });
+    const taxStepNames = new Set(config.steps![stepIndexForSlug("tax-residency")!].fieldNames ?? []);
+    const complainedAbout = result.success
+      ? []
+      : [...new Set(result.error.issues.map((issue) => String(issue.path[0])))].filter((name) =>
+          taxStepNames.has(name),
+        );
+    expect(complainedAbout).toEqual(["country"]);
   });
 
   it("swaps the whole personal-details step when the account type changes", () => {

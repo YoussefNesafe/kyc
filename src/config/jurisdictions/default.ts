@@ -13,7 +13,10 @@ import type { Jurisdiction } from "./types";
  */
 export const fallback: Jurisdiction = {
   code: "DEFAULT",
-  label: "your country of residence",
+  // Read by `badgeFor`, which writes "Required in <label>" for every
+  // jurisdiction alike — hence a noun phrase that survives the preposition
+  // rather than a country name this config does not have.
+  label: "countries without their own rules",
 
   fallbackNotice:
     "No country-specific rules are configured for this selection, so the standard self-declaration below applies. Choosing Germany, the United States or the United Arab Emirates swaps these questions for that country's own — the difference is worth seeing.",

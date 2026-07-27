@@ -1,3 +1,4 @@
+import { getCountries } from "libphonenumber-js";
 import { defineForm } from "@/form-builder/core/defineForm";
 import type { AnyFieldConfig, Condition, FormConfig, StepConfig } from "@/form-builder/core/types";
 import { corporateFields } from "./fields/corporate";
@@ -16,17 +17,20 @@ import { STEP_SLUGS, STEP_TITLES } from "./steps";
 
 export type BuildFormConfigOptions = {
   /**
-   * The reference date for every relative bound in the config — today's age
-   * cutoff, today's latest incorporation date. Defaults to now.
+   * The reference date for every relative bound in the config — the age cutoff
+   * on `dateOfBirth`, the latest permitted `incorporationDate`.
    *
-   * Passing it is what makes the config reproducible: a test can pin it, and
-   * two calls in one session produce byte-identical fields, which is what
-   * `draftConfigHash` needs. It changes once a day, which does invalidate a
-   * draft left open across midnight; that is the honest cost of expressing the
-   * age rule declaratively, and it is a far smaller blast radius than the
-   * alternative below.
+   * Required, with no `new Date()` default, because the default would be the
+   * dangerous path: `draftConfigHash` hashes `config.fields`, the engine's
+   * `useDynamicForm` recomputes that hash whenever the config identity changes,
+   * and a `maxDate` sourced from the clock moves at UTC midnight. A builder that
+   * silently read the clock would let a caller create an unstable config
+   * without ever making a decision about it.
+   *
+   * The application passes a persisted, draft-scoped date — see
+   * `APPLICATION_FORM` in `./applicationForm`. Tests pin a literal.
    */
-  now?: Date;
+  now: Date;
 };
 
 /**
@@ -57,17 +61,20 @@ export type BuildFormConfigOptions = {
  * function adds:
  *
  * - `visibleWhen` — the country guard and the account-type guard. For a
- *   configured country that is `country === "DE"`; for the fallback it is
- *   `country !== "DE" && country !== "US" && country !== "AE"`, derived from the
- *   registry so a new jurisdiction cannot be added without the fallback
- *   standing aside for it. The engine's conditions are DNF over a fixed set of
- *   operators, with no `notIn`, which is why the fallback guard is a list of
- *   `notEquals` rather than one condition.
+ *   configured country that is `country === "DE"`; for the fallback it is a
+ *   single `in` over every ISO code the registry does not claim, derived from
+ *   the registry so a new jurisdiction cannot be added without the fallback
+ *   standing aside for it.
  *
- *   Note what that guard does before a country is chosen: `undefined` is not
- *   equal to any of the three, so the fallback fields are visible. That is
- *   deliberate and matches `resolveJurisdiction(undefined)` — a visitor who has
- *   not chosen a country is in exactly the situation the fallback describes.
+ *   `in` rather than a `notEquals` per configured code, which is the other way
+ *   to say it: one condition instead of N, and — the part that matters — an
+ *   unchosen country is not *in* the list, whereas it is not *equal* to any of
+ *   them. With `notEquals` the three fallback fields were visible and required
+ *   before the visitor had chosen anything, so pressing Continue on an empty
+ *   tax step named three fields that disappear the moment a country is picked.
+ *   The cost is ~1.2 KB of repeated ISO codes per guarded field in the
+ *   serialised config; it compresses to almost nothing and never reaches the
+ *   network.
  *
  * - `badge` — "Required in Germany", the short annotation the engine renders
  *   beside the label and folds into the accessible name. Without it, a field
@@ -79,9 +86,7 @@ export type BuildFormConfigOptions = {
  * One file under `jurisdictions/`, one line in `jurisdictions/index.ts`. No
  * change here, and no change to a component.
  */
-export function buildFormConfig(options: BuildFormConfigOptions = {}): FormConfig {
-  const now = options.now ?? new Date();
-
+export function buildFormConfig({ now }: BuildFormConfigOptions): FormConfig {
   const individual = individualFields(now);
   const corporate = corporateFields(now);
 
@@ -109,7 +114,7 @@ export function buildFormConfig(options: BuildFormConfigOptions = {}): FormConfi
     submitField,
   ];
 
-  const steps: StepConfig[] = [
+  const steps: StepList = [
     { title: STEP_TITLES["account-type"], fieldNames: names(accountStepFields) },
     { title: STEP_TITLES["personal-details"], fieldNames: names(personalFields) },
     { title: STEP_TITLES["tax-residency"], fieldNames: names(taxStepFields) },
@@ -127,24 +132,39 @@ export function buildFormConfig(options: BuildFormConfigOptions = {}): FormConfi
   });
 }
 
-/** Sanity net: the step list is written out longhand above, so pin it to the slugs the router uses. */
-if (STEP_SLUGS.length !== 5) {
-  throw new Error("buildFormConfig writes five steps by hand — STEP_SLUGS must have five entries");
-}
+/**
+ * The step list, written out longhand above, pinned to the slugs the router
+ * uses. Mapping over a `readonly` tuple yields a tuple of the same arity, so
+ * this is one `StepConfig` per entry in `STEP_SLUGS` — adding a sixth slug
+ * fails the build here rather than desynchronising the routes from the wizard.
+ */
+type SameArity<T extends readonly unknown[], V> = { -readonly [K in keyof T]: V };
+type StepList = SameArity<typeof STEP_SLUGS, StepConfig>;
 
 function names(fields: AnyFieldConfig[]): string[] {
   return fields.map((field) => field.name);
 }
 
 /**
+ * Every ISO code the registry does not claim — the fallback's country guard,
+ * as one `in` condition.
+ *
+ * Sourced from the same `getCountries()` the engine's `country` field validates
+ * against, so the guard and the control cannot drift apart, and sorted so the
+ * config serialises identically on every call.
+ */
+const UNCONFIGURED_COUNTRIES: readonly string[] = (getCountries() as string[])
+  .filter((code) => !CONFIGURED_CODES.includes(code))
+  .sort();
+
+/**
  * The country half of the guard. A configured jurisdiction matches its own
- * code; the fallback matches everything the registry does not claim, expressed
- * as one `notEquals` per configured code because the engine's condition
- * vocabulary has `equals`, `notEquals`, `in` and `isValid` — and no `notIn`.
+ * code; the fallback matches every code nobody claimed — which, being a
+ * membership test, excludes an unchosen country for free.
  */
 function countryConditions(code: string): Condition[] {
   return code === FALLBACK_CODE
-    ? CONFIGURED_CODES.map((configured) => ({ field: "country", notEquals: configured }))
+    ? [{ field: "country", in: [...UNCONFIGURED_COUNTRIES] }]
     : [{ field: "country", equals: code }];
 }
 
@@ -152,13 +172,18 @@ function withAccountTypeGuard(field: AnyFieldConfig, accountType: AccountType): 
   return { ...field, visibleWhen: [{ field: "accountType", equals: accountType }] };
 }
 
+/**
+ * "Required in Germany", "Only asked in countries without their own rules".
+ *
+ * One phrasing for every jurisdiction including the fallback, which is why
+ * `Jurisdiction.label` is written as a noun phrase that reads after a
+ * preposition rather than as a bare country name — the fallback has no country
+ * to name, and a special case here would have left its label unread.
+ */
 function badgeFor(jurisdiction: Jurisdiction, field: AnyFieldConfig): string | undefined {
   // Nothing to sit beside: `static` and `hidden` render no label, and the
   // engine documents `badge` as part of the label's accessible name.
   if (!field.label) return undefined;
-  if (jurisdiction.code === FALLBACK_CODE) {
-    return field.required ? "Standard requirement" : "Standard, optional";
-  }
   return field.required ? `Required in ${jurisdiction.label}` : `Only asked in ${jurisdiction.label}`;
 }
 

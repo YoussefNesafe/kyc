@@ -6,7 +6,12 @@ import {
   saveDraft,
   type DraftStorage,
 } from "@/form-builder/core/autosave";
-import { APPLICATION_FORM, APPLICATION_FORM_ID, applicationReferenceDate } from "./applicationForm";
+import {
+  APPLICATION_DRAFT_STORAGE,
+  APPLICATION_FORM,
+  APPLICATION_FORM_ID,
+  applicationReferenceDate,
+} from "./applicationForm";
 import { buildFormConfig } from "./buildFormConfig";
 
 function memoryStorage(): DraftStorage {
@@ -70,11 +75,40 @@ describe("applicationReferenceDate", () => {
   });
 });
 
-describe("a draft written on one day and reopened on the next", () => {
-  it("still loads — which is what the first step promises the visitor", () => {
+describe("the draft store", () => {
+  it("is sessionStorage, so a half-filled KYC form cannot outlive the tab", () => {
+    // Not an ergonomics choice. See APPLICATION_DRAFT_STORAGE: this is a public
+    // URL, and a draft holds a name, a date of birth and a taxpayer number.
+    expect(APPLICATION_DRAFT_STORAGE).toBe("session");
+  });
+
+  it("takes the reference date with it when the tab closes", () => {
+    const tabOne = memoryStorage();
+    applicationReferenceDate(tabOne, MONDAY);
+    saveDraft(APPLICATION_FORM_ID, "any-hash", { fullName: "Marit Quillon" }, 1, tabOne);
+    expect(applicationReferenceDate(tabOne, TUESDAY).toISOString()).toBe("2026-07-27T00:00:00.000Z");
+
+    // Closing the tab empties sessionStorage: the draft and the date it was
+    // built with are in the same store, so neither can survive the other.
+    const tabTwo = memoryStorage();
+    expect(applicationReferenceDate(tabTwo, TUESDAY)).toBe(TUESDAY);
+    expect(tabTwo.getItem("meridian-kyc:config-reference-date")).toBe("2026-07-28");
+  });
+
+  it("does not freeze on a reference date whose draft is gone", () => {
+    // The failure mode if the two were ever split across stores: a stale date
+    // pinning the config to a cutoff no draft remembers.
+    const storage = memoryStorage();
+    storage.setItem("meridian-kyc:config-reference-date", "2026-07-27");
+    expect(applicationReferenceDate(storage, TUESDAY)).toBe(TUESDAY);
+  });
+});
+
+describe("a tab left open across UTC midnight", () => {
+  it("still loads its draft — the case sessionStorage leaves exposed", () => {
     const storage = memoryStorage();
 
-    // Monday: build the config the way the app does, and autosave a draft.
+    // Late Monday: build the config the way the app does, and autosave a draft.
     const mondayConfig = buildFormConfig({ now: applicationReferenceDate(storage, MONDAY) });
     const mondayHash = draftConfigHash(mondayConfig.fields);
     const values = { accountType: "individual", country: "DE", fullName: "Marit Quillon" };

@@ -13,8 +13,15 @@ export const accountStepFields: AnyFieldConfig[] = [
     type: "static",
     name: "applicationIntro",
     as: "p",
+    // Says what the storage actually does. An earlier draft of this line
+    // promised "close the tab and come back", which sessionStorage does not
+    // deliver — and the requirement is sessionStorage, for the reason spelled
+    // out on APPLICATION_DRAFT_STORAGE. The copy was the thing that had to
+    // change. It is framed as a safeguard rather than a limitation, because
+    // that is what it is: a half-finished KYC form holding a date of birth and
+    // a tax number should not outlive the tab on a shared machine.
     content:
-      "Meridian Markets is a fictional brokerage and this is a portfolio demo. Nothing you type is sent anywhere: there is no server, no analytics and no upload. Progress is kept in this browser only, so you can close the tab and come back.",
+      "Meridian Markets is a fictional brokerage and this is a portfolio demo. Nothing you type is sent anywhere: there is no server, no analytics and no upload. Your answers stay in this browser tab and nowhere else — refresh as often as you like, and closing the tab discards them, which is the point.",
   },
   {
     type: "radio",

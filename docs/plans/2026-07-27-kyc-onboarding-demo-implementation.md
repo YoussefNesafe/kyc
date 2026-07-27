@@ -1505,18 +1505,75 @@ Commit: `test(e2e): keyboard completion and a data-egress guard`
 Go through section 8 of the brief one item at a time, run each check, and record the
 actual result. Do not mark an item done from inspection — @superpowers:verification-before-completion.
 
-- [ ] Changing country in step 1 visibly changes step 3
-- [ ] All three jurisdictions differ noticeably
-- [ ] `.tiff` rejected with a specific reason
-- [ ] Oversized file rejected before processing
-- [ ] Under-18 DOB gives a human message
-- [ ] Refresh mid-flow restores and says so
-- [ ] Keyboard-only completion works (Task 21 covers this)
-- [ ] Banner visible on every step including success
-- [ ] Zero requests carrying form input (Task 21 covers this)
-- [ ] Lighthouse mobile performance ≥ 90
-- [ ] No console errors or warnings
-- [ ] `grep -ri meridian src/form-builder/` empty (Task 11 covers this)
+**Worked 2026-07-28.** Every item below was driven in Chrome (chrome-devtools) against
+`yarn build && yarn start`, or by a Playwright run against the same production server.
+Nothing here is marked from reading the code.
+
+Two corrections to the checklist itself, established during the build:
+
+1. **The country field is on the tax-residency step, not step 1.** It was moved there
+   deliberately — `us_state` reads its options from it through `optionsFrom`, and the
+   engine's config validator warns when an `optionsFrom` source sits on a different
+   step. So item one is really "changing country changes the fields around it".
+2. **The documents step is identical for US, AE and the fallback.** All individual-branch
+   differentiation lives on the tax step; a jurisdiction-specific upload exists only for
+   DE (Meldebescheinigung) and in the corporate branch. The documents step does not
+   demonstrate jurisdiction branching and should not be claimed to.
+
+- [x] Changing country changes the fields around it — DE → Steuer-ID (masked
+      `## ### ### ###`) + church-tax radio; US → searchable state select fed by the
+      country + masked `###-##-####` TIN + backup-withholding checkboxes; AE → a
+      static "no personal income tax, so no taxpayer number" note + Emirates ID
+      (`784-####-#######-#`) + visa-status radio + emirate select; FR → the fallback's
+      notice + country-of-tax-residence + free-text TIN + self-declaration. Every field
+      carries the "Required in <jurisdiction>" badge. With no country chosen the step
+      shows the country field alone.
+- [x] All three jurisdictions differ noticeably — see above; the control *types* differ,
+      not just the labels.
+- [x] `.tiff` rejected with a specific reason — row `data-status="rejected"`, no upload
+      bar ever started, message: `scan.tiff isn't in a format we accept (TIFF) — please
+      upload JPG, JPEG, PNG or PDF`.
+- [x] Oversized file rejected before processing — a 7.00 MB PNG on a 5 MB field:
+      `File must be smaller than 5 MB`, no `role="progressbar"` was ever created for it,
+      and no request was made. `grep -rn "FileReader\|createObjectURL\|arrayBuffer()\|
+      FormData\|fetch(\|XMLHttpRequest\|sendBeacon" src/` returns nothing, so there is no
+      code path that could have read it.
+- [x] Under-18 DOB gives a human message — picking 15 July 2015 raises
+      `You must be 18 or older to open a Meridian Markets account.` immediately, and Next
+      stays on the step.
+- [x] Refresh mid-flow restores and says so — reload on `/apply/documents` stayed on step
+      4 and showed "Your answers are back… Files are never kept, so any documents you had
+      chosen need choosing again." All values verified back, including the two that have
+      regressed before: the step-1 `accountPurpose` select and the church-tax radio.
+- [x] Keyboard-only completion works — `e2e/keyboard-flow.spec.ts`, green.
+- [x] Banner visible on every step including success — checked on all five steps and on
+      the success panel.
+- [x] Zero requests carrying form input — `e2e/no-data-egress.spec.ts`, green; and
+      confirmed by hand in DevTools: 37 requests over a complete flow, all GET, all
+      same-origin, all either static assets or Next RSC prefetches of the five step
+      routes. No POST at all.
+- [ ] **Lighthouse mobile performance ≥ 90 — FAILS on the form routes.** Measured with
+      Lighthouse 12.8.2, mobile, default simulated throttling, against `yarn build &&
+      yarn start`, three runs each: `/` scores 82 / 94 / **96** (median 94, passes);
+      `/apply/account-type` scores 65 / **70** / 73 (median 70). CLS is 0 everywhere.
+      The cause is one 286 KiB gzipped client chunk (1.1 MB raw) of which Lighthouse
+      reports ~195 KiB unused on the first step, and ~1.4 s of main-thread script
+      evaluation: LCP is 91 % "render delay". The measured ceiling of the proportionate
+      fixes is **76** — stubbing out the entire 250-flag SVG barrel that
+      `react-phone-number-input/flags` exports and both `CountryField` and `PhoneField`
+      import wholesale took one run from 60 to 69, and dropping the JetBrains Mono
+      preload on top of it reached 76. Neither was kept: the flags stub removes the flags
+      from both country selectors for five points, and repeated runs showed the font
+      change is inside the noise (FCP is bimodal at 1.06 s / 3.02 s on this hardware
+      whether or not mono is preloaded, which is what the single-run "60 → 71" reading
+      earlier was). Closing the remaining gap means not shipping the form engine to the
+      first paint, which is the thing the demo exists to show. Re-measure against the
+      deployed URL in Task 24; the localhost server, Chrome and the test runner were all
+      competing for the same machine here.
+- [x] No console errors or warnings — zero console messages of any type over a complete
+      flow from `/` through submit on a production build.
+- [x] `grep -ri meridian src/form-builder/` empty — and no `@/` import of any kind in the
+      engine; `scripts/check-engine-boundary.mjs` passes over all 67 files.
 
 Fix what fails; commit fixes individually.
 

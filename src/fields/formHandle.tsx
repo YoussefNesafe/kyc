@@ -52,6 +52,20 @@ export type FormHandleSink = { current: FormHandle | null };
  * The sink is intentionally a plain ref rather than state: nothing in the shell
  * should re-render because a field mounted, and the handle is only ever read
  * inside an event handler or an effect.
+ *
+ * ## What this costs, stated rather than discovered
+ *
+ * It couples the demo to the engine's *internal* choice of react-hook-form and
+ * `FormProvider` rather than to its public props, so an engine that swapped its
+ * form library — a change with no effect on any documented surface — would take
+ * the sample-data button and the shell's guard with it.
+ *
+ * And the handle is whichever field mounted last, captured during that field's
+ * mount commit, so `form.current.formState` is a render-time snapshot that goes
+ * stale the moment anything changes. Nothing here reads it: the shell calls
+ * `getValues`, `reset` and `trigger`, which are stable identities reading live
+ * state through the same `control`. Anything wanting validity or errors must
+ * subscribe (`useFormState`), not read them off this.
  */
 const FormHandleContext = createContext<FormHandleSink | null>(null);
 

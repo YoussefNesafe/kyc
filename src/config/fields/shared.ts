@@ -47,6 +47,13 @@ export const accountStepFields: AnyFieldConfig[] = [
     name: "accountPurpose",
     label: "What will the account mostly be used for?",
     required: true,
+    // Without this the control renders as an empty box — a `select` has no
+    // value until one is chosen, and unlike the text fields around it there is
+    // nothing else in it to look at. It is the second control on the first
+    // screen, so an empty box there reads as a component that failed to load
+    // rather than as a question. Phrased as an instruction, not as a fake
+    // option: the placeholder is not selectable and must not look like it is.
+    placeholder: "Choose one",
     options: [
       { label: "Long-term investing", value: "long-term" },
       { label: "Active trading", value: "active-trading" },

@@ -1,65 +1,237 @@
-import Image from "next/image";
+import Link from "next/link";
+import { JURISDICTIONS } from "@/config/jurisdictions";
+import { APPLICATION_ENTRY_PATH, APPLICATION_ROUTE_IS_LIVE } from "@/config/routes";
+import { STEP_SLUGS, STEP_TITLES } from "@/config/steps";
+
+/**
+ * The landing page.
+ *
+ * ## Why this is a page and not a redirect to `/apply/account-type`
+ *
+ * The obvious move for a demo is to send `/` straight into step one, and it is
+ * the wrong one here. This URL is linked from an Upwork profile and pasted into
+ * proposals, so the person opening it is deciding whether to hire someone — not
+ * opening a brokerage account. Dropped into step one they get a form asking for
+ * an account type, with no idea what they are looking at, how far it goes, or
+ * what is worth noticing. The interesting parts of this project (requirements
+ * held as data, a guarded engine boundary, accessibility and demo-safety
+ * treated as constraints) are all invisible from inside a single step, and a
+ * client who bounces at step one never sees any of them.
+ *
+ * So: a page that answers "what is this and why should I care" in about five
+ * seconds, and then hands over a way in. It also gives every later screen
+ * somewhere to come back to, which a redirect cannot.
+ *
+ * ## Why the content is read from the config
+ *
+ * The step list and the jurisdiction list below are the same objects the form
+ * is built from — not a copy written out in JSX. A landing page that describes
+ * five steps while the form renders four is a worse advertisement than no
+ * landing page, and this is the cheapest way to make that impossible. It also
+ * quietly demonstrates the claim it is making: adding a country really is one
+ * file and one line, and this page updates itself when someone does it.
+ */
+
+const HIGHLIGHTS = [
+  {
+    title: "Requirements held as data",
+    body: "A jurisdiction is one file and one line in a registry. The builder stamps the visibility guard and the “Required in Germany” badge onto every field it contributes, so no component knows a country exists — and adding one changes no component code.",
+  },
+  {
+    title: "A vendored engine, with the boundary enforced",
+    body: "The form engine is a standalone, config-driven package vendored into this repo. It must stay liftable, so a check in the lint step fails the build if engine code names this brand or imports anything from the demo.",
+  },
+  {
+    title: "Accessibility as a requirement, not a pass at the end",
+    body: "Labels, descriptions and errors are wired to their controls, focus is handled on every step change, and the palette is held to WCAG contrast by tests that fail if a token drifts — including the 3:1 non-text bar for control borders.",
+  },
+  {
+    title: "Demo safety as a design constraint",
+    body: "It looks real enough that somebody would type a real passport number into it, so nothing leaves the browser, the draft lives in sessionStorage rather than localStorage, files are never persisted, and the notice above cannot be dismissed.",
+  },
+];
+
+const STACK = [
+  "Next.js 16 (App Router)",
+  "React 19",
+  "TypeScript",
+  "Tailwind CSS v4",
+  "react-hook-form + Zod",
+  "Vitest",
+];
+
+/**
+ * A jurisdiction's `label` is written to sit inside a sentence — the form
+ * renders "Required in the United States" — so it arrives lower-cased where the
+ * article leads. Sentence-casing it here is a presentation concern of this list
+ * and belongs here, not in the config, where changing it would reword a badge.
+ */
+function asListEntry(label: string): string {
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="flex-1 pb-20">
+      {/* --- Hero ---------------------------------------------------------- */}
+      <section className="shell pt-12 tablet:pt-16 desktop:pt-24">
+        <p className="text-eyebrow font-semibold uppercase tracking-eyebrow text-muted-foreground">
+          Portfolio demonstration
+        </p>
+
+        <h1 className="mt-4 max-w-[18ch] text-h2 tablet:text-h1">
+          Account opening, from the first question to the last upload.
+        </h1>
+
+        <p className="mt-6 max-w-[var(--measure)] text-lede text-muted-foreground text-pretty">
+          Meridian Markets is a fictional broker. The application behind it is
+          not: it is a working, jurisdiction-aware KYC flow that changes the
+          questions it asks — and the documents it demands — the moment you say
+          where you are tax resident.
+        </p>
+
+        <div className="mt-9">
+          {APPLICATION_ROUTE_IS_LIVE ? (
+            <Link
+              href={APPLICATION_ENTRY_PATH}
+              className="inline-flex min-h-11 items-center rounded-md bg-primary px-5 text-ui font-medium text-primary-foreground transition-colors hover:bg-[var(--primary-hover)]"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+              Start the application
+            </Link>
+          ) : (
+            /*
+             * No dead button. The shell that serves `/apply/…` is the next
+             * thing to land, and a primary call to action that 404s is worse
+             * on this page than on any other — it is the only thing most
+             * visitors will click.
+             */
+            <p className="max-w-[var(--measure)] rounded-md border border-border bg-card px-4 py-3 text-detail text-muted-foreground">
+              <span className="font-medium text-foreground">
+                The application flow is being wired up.
+              </span>{" "}
+              This page is live first, so the interface every step inherits can
+              be reviewed in place. The five steps below are read from the
+              configuration the form is built from.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* --- What to look at ------------------------------------------------ */}
+      <section className="shell mt-16 tablet:mt-20" aria-labelledby="what-to-look-at">
+        <h2
+          id="what-to-look-at"
+          className="text-eyebrow font-semibold uppercase tracking-eyebrow text-muted-foreground"
+        >
+          What this is meant to show
+        </h2>
+
+        <div className="mt-6 grid gap-px overflow-hidden rounded-md border border-border bg-border tablet:grid-cols-2">
+          {HIGHLIGHTS.map((highlight) => (
+            <article key={highlight.title} className="bg-card p-5 desktop:p-6">
+              <h3 className="text-lede font-semibold">{highlight.title}</h3>
+              <p className="mt-2 text-detail text-muted-foreground text-pretty">
+                {highlight.body}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* --- The flow itself ------------------------------------------------ */}
+      <div className="shell mt-16 grid gap-12 tablet:mt-20 desktop:grid-cols-[3fr_2fr] desktop:gap-16">
+        <section aria-labelledby="the-steps">
+          <h2
+            id="the-steps"
+            className="text-eyebrow font-semibold uppercase tracking-eyebrow text-muted-foreground"
+          >
+            The five steps
+          </h2>
+
+          <ol className="mt-5 border-t border-border">
+            {STEP_SLUGS.map((slug, index) => (
+              <li
+                key={slug}
+                className="flex items-baseline gap-4 border-b border-border py-3"
+              >
+                <span className="font-mono text-note text-muted-foreground tabular-nums">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="text-ui font-medium">{STEP_TITLES[slug]}</span>
+                <span className="ms-auto font-mono text-note text-muted-foreground">
+                  /{slug}
+                </span>
+              </li>
+            ))}
+          </ol>
+
+          <p className="mt-4 max-w-[var(--measure)] text-note text-muted-foreground text-pretty">
+            The count is fixed. Branching is done with per-field visibility
+            rules inside these five, never by adding or removing a step, which
+            keeps the route table static and the progress indicator honest.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        </section>
+
+        <section aria-labelledby="jurisdictions">
+          <h2
+            id="jurisdictions"
+            className="text-eyebrow font-semibold uppercase tracking-eyebrow text-muted-foreground"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            Jurisdictions configured
+          </h2>
+
+          <ul className="mt-5 border-t border-border">
+            {JURISDICTIONS.map((jurisdiction) => (
+              <li
+                key={jurisdiction.code}
+                className="flex items-baseline gap-4 border-b border-border py-3"
+              >
+                <span className="font-mono text-note text-muted-foreground">
+                  {jurisdiction.code}
+                </span>
+                <span className="text-ui font-medium">
+                  {asListEntry(jurisdiction.label)}
+                </span>
+              </li>
+            ))}
+            <li className="flex items-baseline gap-4 border-b border-border py-3">
+              <span className="font-mono text-note text-muted-foreground">··</span>
+              <span className="text-ui text-muted-foreground">
+                Everywhere else falls back to a generic set, and is told so.
+              </span>
+            </li>
+          </ul>
+        </section>
+      </div>
+
+      {/* --- Colophon ------------------------------------------------------- */}
+      <section className="shell mt-16 tablet:mt-20" aria-labelledby="built-with">
+        <h2
+          id="built-with"
+          className="text-eyebrow font-semibold uppercase tracking-eyebrow text-muted-foreground"
+        >
+          Built with
+        </h2>
+
+        <ul className="mt-4 flex flex-wrap gap-2">
+          {STACK.map((item) => (
+            <li
+              key={item}
+              className="rounded-sm border border-border bg-card px-2.5 py-1 text-note"
+            >
+              {item}
+            </li>
+          ))}
+        </ul>
+
+        <p className="mt-8 max-w-[var(--measure)] border-t border-border pt-6 text-note text-muted-foreground text-pretty">
+          Meridian Markets does not exist and this application cannot open one.
+          Built as a public work sample by a freelance frontend engineer working
+          on regulated-fintech interfaces. No analytics, no third-party
+          requests, no backend — the fonts are self-hosted and nothing on this
+          page phones home.
+        </p>
+      </section>
+    </main>
   );
 }

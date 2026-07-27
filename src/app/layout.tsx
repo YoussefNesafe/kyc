@@ -38,6 +38,23 @@ export const metadata: Metadata = {
   },
   description:
     "A portfolio demonstration of a jurisdiction-aware KYC onboarding flow. Nothing entered is sent anywhere, uploaded or stored on a server.",
+  /*
+   * Kept out of search results on purpose, and not because the work is
+   * embarrassing.
+   *
+   * This is a convincing account-opening form for a brokerage that does not
+   * exist, asking for a date of birth, a taxpayer number and a photograph of a
+   * passport. Ranking for "open a brokerage account" would put it in front of
+   * people who arrived looking for the real thing, and the demo banner is then
+   * the only difference between this and a phishing page — a difference a
+   * hurried visitor may not register. Nobody is meant to *find* this; it is
+   * linked from a profile and from proposals, and a link works whether or not
+   * a crawler has indexed it.
+   *
+   * `follow: false` as well as `index: false`: there is no reason to spend a
+   * crawler's attention walking five steps of a form that goes nowhere.
+   */
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({

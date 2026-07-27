@@ -17,6 +17,7 @@ import type { FormValues } from "@/form-builder/core/types";
 import { FormRenderer, type DraftRestoreInfo } from "@/form-builder/components/FormRenderer";
 import { ProgressNotice, ResumedNotice } from "./ResumedNotice";
 import { SampleDataButton } from "./SampleDataButton";
+import { SuccessPanel, newApplicationReference } from "./SuccessPanel";
 
 /**
  * The application, and everything about it that is the host's job rather than
@@ -68,8 +69,19 @@ import { SampleDataButton } from "./SampleDataButton";
 registerBuiltInFields();
 
 const STEPS = APPLICATION_FORM.steps ?? [];
-const DOCUMENTS_STEP = stepIndexForSlug("documents") ?? -1;
-const REVIEW_STEP = stepIndexForSlug("review") ?? -1;
+/**
+ * Both fall back to a value that makes every comparison against them *false*,
+ * so a slug that went missing turns the feature off rather than turning it on
+ * for everyone. `DOCUMENTS_STEP` is the one that had it backwards: it is read
+ * as `resumed.step >= DOCUMENTS_STEP`, and a `-1` there is satisfied by every
+ * restore, so every resumed draft would have claimed that files were cleared —
+ * including one saved on step 1, where nothing has been attached and the
+ * sentence is simply untrue. `REVIEW_STEP` is read as `stepIndex === …`, which
+ * a `-1` already fails; it is written the same way so the pair cannot be
+ * mistaken for two different intentions.
+ */
+const DOCUMENTS_STEP = stepIndexForSlug("documents") ?? Number.MAX_SAFE_INTEGER;
+const REVIEW_STEP = stepIndexForSlug("review") ?? Number.MAX_SAFE_INTEGER;
 const DRAFT_HASH = draftConfigHash(APPLICATION_FORM.fields);
 
 function stepTitle(index: number): string {
@@ -104,7 +116,13 @@ export function ApplicationShell() {
   const form = useRef<FormHandle | null>(null);
   const [resumed, setResumed] = useState<DraftRestoreInfo | null>(null);
   const [blocked, setBlocked] = useState<{ requested: number; landed: number } | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  /**
+   * The submitted application's reference, and the fact that there is one.
+   * Null is the whole of "not submitted" — a separate boolean beside it could
+   * disagree with it, and the two would be reconciled with the URL separately.
+   */
+  const [reference, setReference] = useState<string | null>(null);
+  const submitted = reference !== null;
 
   /**
    * The router, reached through a ref so that `goToStep` — and therefore the
@@ -211,7 +229,16 @@ export function ApplicationShell() {
   }, []);
 
   const handleSubmit = useCallback(() => {
-    setSubmitted(true);
+    setReference(newApplicationReference());
+    // The handle is about to dangle. This render replaces `FormRenderer` with
+    // the success panel, and the sink is only ever written from a field's mount
+    // effect, so nothing else clears it. Left in place it would answer the
+    // progress guard with the submitted answers off a form that no longer
+    // exists — so a Back out of the success panel would find every step still
+    // unlocked, on an application that has been cleared. Dropping it makes
+    // `currentValues` fall through to the draft, which the engine has just
+    // emptied, which is the truth.
+    form.current = null;
   }, []);
 
   // Every step is a static route; warming them on mount makes each `push` a
@@ -239,39 +266,145 @@ export function ApplicationShell() {
       return;
     }
     /**
-     * Re-validate the whole form on arrival at the review step, because
+     * Re-publish the form's validity on arrival at the review step, because
      * otherwise Submit is disabled and nothing says why.
      *
-     * Found by walking the flow in Chrome. The engine's `SubmitField` disables
-     * itself on `!formState.isValid`, and the wizard's Next gate calls
-     * `form.trigger(currentFieldNames)` — a *subset* trigger, which
-     * react-hook-form does not use to recompute `isValid`. So a visitor who has
-     * answered every question correctly arrives at the review step with
-     * `isValid === false` and a dead Submit button, and nothing on that step
-     * changes a value, so nothing ever recomputes it. Measured in the page:
-     * `isValid` was `false` on arrival and `true` immediately after a bare
-     * `trigger()`, with `errors` empty in both readings.
+     * ## Not the subset trigger
      *
-     * It sits inside the guard, after the redirect has been ruled out, and that
-     * placement is load-bearing rather than tidy. A `trigger()` marks every
-     * visible field, so it may only run where the answers are known to be
-     * complete — which is exactly what reaching this line means. In its first
-     * version this was an effect of its own, and a cold load of `/apply/review`
-     * with a restored draft ran it before the redirect landed: the visitor
-     * arrived on the documents step with "This field is required" already under
-     * two uploads they had never been shown. Seen in the browser, not in a test.
+     * An earlier version of this comment blamed the wizard's Next gate for
+     * calling `form.trigger(currentFieldNames)` — a *subset* trigger — and
+     * claimed react-hook-form does not recompute `isValid` from one. That is
+     * false, and it was stated confidently. With a resolver present, `trigger`
+     * runs the resolver and takes `isValid = isEmptyObject(errors)` from its
+     * *whole* error object (`react-hook-form/dist/index.esm.mjs:2650-2700`),
+     * and `@hookform/resolvers` keeps every issue the schema raised whatever
+     * `names` it was handed (`toNestErrors` iterates the errors, not the
+     * names). The subset only narrows which errors are written into
+     * `formState.errors`; the verdict is always the full form's.
+     *
+     * ## The lazy formState proxy, and the order things subscribe in
+     *
+     * `formState` is a proxy whose getters double as the subscription: reading
+     * `formState.isValid` is what marks `isValid` on `control._proxyFormState`,
+     * and only a key marked *there* makes `shouldRenderFormState` re-render the
+     * root `useForm`. Nothing reads it until `SubmitField` mounts — and
+     * `SubmitField` only exists on this step. `useDynamicForm` never touches
+     * `formState` at all, so for the whole journey up to here the root has no
+     * subscription to `isValid` and never re-renders for one. The snapshot
+     * `FormProvider` hands down therefore stays at the `isValid: false` it was
+     * created with. `SubmitField` mounts, reads that stale snapshot, disables
+     * itself, and *then* subscribes — by which time the review step changes no
+     * value, so nothing publishes `isValid` again and the button never wakes.
+     *
+     * Measured in Chrome with this line switched off, at the moment Submit
+     * rendered disabled: internal `control._formState.isValid` `true`, the
+     * react-side `formState.isValid` `false`, internal `errors` `[]`. And the
+     * confirming half — with the line still off, marking
+     * `_proxyFormState.isValid` on step 1 and changing nothing else brought the
+     * same walk to review with Submit **enabled**. Field-level reads do not
+     * substitute for it: `useController` marks keys `true` (`errors`,
+     * `touchedFields` and `disabled` were all `true` on arrival) where the root
+     * test accepts only `"all"`.
+     *
+     * A bare `trigger()` fixes it from the host side for the dull reason that
+     * it runs *after* `SubmitField` has subscribed, so its verdict is the first
+     * one anybody is listening for.
+     *
+     * ## The upstream fix, which is not available from here
+     *
+     * `SubmitField.tsx:13` should read validity through `useFormState({
+     * control })` instead of the root proxy on `useFormContext()`. That hook
+     * seeds its own state from `control._formState` — the live internal value,
+     * not the root's render snapshot — and its mount effect calls
+     * `control._setValid(true)`, which recomputes the verdict for a subscriber
+     * that arrived late. Both halves of this, closed inside the component that
+     * has the problem, and react-hook-form built the hook for exactly this.
+     * `src/form-builder/` is vendored and not editable from this repo, so the
+     * host re-publishes the verdict instead.
+     *
+     * ## Why it sits inside the guard
+     *
+     * Load-bearing rather than tidy. A `trigger()` marks every visible field,
+     * so it may only run where the answers are known to be complete — which is
+     * exactly what reaching this line past the redirect above means. In its
+     * first version this was an effect of its own, and a cold load of
+     * `/apply/review` with a restored draft ran it before the redirect landed:
+     * the visitor arrived on the documents step with "This field is required"
+     * already under two uploads they had never been shown. Seen in the browser,
+     * not in a test.
      */
     if (stepIndex === REVIEW_STEP) void form.current?.trigger();
   }, [stepIndex, submitted, goToStep]);
 
+  /**
+   * Submission is a fact about the review step, and the URL is allowed to
+   * contradict it.
+   *
+   * Without this the success panel outlived its own URL: submit, press Back,
+   * and `/apply/documents` sat there reading "Application complete" while the
+   * live region announced "Step 4 of 5, Documents". In a shell whose entire
+   * claim is that the URL is the step, that was the one screen where the claim
+   * was false.
+   *
+   * ## Why success is not its own route
+   *
+   * The obvious alternative is a sixth slug, `/apply/complete`, and it was
+   * rejected because that URL could never be honoured. Submitting clears the
+   * draft, so a reload or a deep link onto it has no application and no
+   * reference to show and would have to bounce to step 1 — and a URL that
+   * cannot be reloaded, bookmarked or shared is not a route, it is state
+   * wearing a route's clothes. It would also cost an "except complete" clause
+   * in every place that reasons about steps: `STEP_SLUGS`,
+   * `generateStaticParams`, `furthestAvailableStep`, the progress guard and the
+   * "Step N of 5" announcement, none of which have anything to say about a
+   * screen that is not a step.
+   *
+   * So the reference stays state and the rule is one line: it belongs to the
+   * review step, and any URL that is not the review step ends it. What the
+   * visitor gets after a Back is not the form they submitted — that is gone,
+   * with its draft — but the guard's honest answer to an empty application: the
+   * first step, and a notice saying why.
+   *
+   * ## And the guard's notice, which retires the same way
+   *
+   * It belongs to the step it sent the visitor to. Clearing it on *any* step
+   * change is wrong — the redirect that raises it is itself a step change, so
+   * that erases the notice in the commit that paints it, which is the mistake
+   * this file has now made twice. Comparing against the step it landed on is
+   * safe in that commit, because there the URL names precisely that step.
+   *
+   * Leaving it to `showBlocked` to merely *hide* the notice was the previous
+   * behaviour, and hiding is not retiring: deep-linking `/apply/review`, taking
+   * the bounce to step 1, going Next to step 2 and Back to step 1 brought the
+   * notice back, about a URL typed two navigations ago. Reproduced in Chrome
+   * before this was written.
+   *
+   * ## Why this is in the render body and not in an effect
+   *
+   * Both were effects first, and `react-hooks/set-state-in-effect` rejected
+   * them — correctly. This is react.dev's own prescription for state that has
+   * to reset when a prop changes: keep the previous value, compare during
+   * render, adjust immediately. React re-runs this component before committing
+   * anything, so the DOM never shows the stale panel or the stale notice for
+   * even one frame, where an effect would have painted both and then removed
+   * them. The guard above stays an effect because it navigates, which is a side
+   * effect and belongs in one.
+   */
+  const [noticedStep, setNoticedStep] = useState(stepIndex);
+  if (noticedStep !== stepIndex) {
+    setNoticedStep(stepIndex);
+    if (stepIndex !== REVIEW_STEP) setReference(null);
+    if (blocked && blocked.landed !== stepIndex) setBlocked(null);
+  }
+
   const autosave = useMemo(() => ({ storage: APPLICATION_DRAFT_STORAGE }), []);
 
   /**
-   * The guard's notice belongs to the step it sent the visitor to, and is
-   * derived rather than unset from an effect for the same reason the resume
-   * notice is retired in a callback: the redirect that raises it is itself a
-   * step change, so an effect that cleared notices on step changes would erase
-   * this one as it was being painted.
+   * The same condition the effect above retires the notice on, applied a
+   * render earlier. It is not redundant with it: `setBlocked` and the `replace`
+   * that follows are issued together, and between them there is a commit where
+   * the URL still names the *requested* step. Without this the notice would
+   * paint for one frame on the step the visitor is being sent away from.
    */
   const showBlocked = blocked !== null && blocked.landed === stepIndex;
 
@@ -334,11 +467,16 @@ export function ApplicationShell() {
         />
       )}
 
-      {submitted ? (
-        <SubmittedPanel
+      {submitted && reference ? (
+        <SuccessPanel
+          reference={reference}
           onRestart={() => {
-            setSubmitted(false);
             setResumed(null);
+            // The URL does the rest: landing on a step that is not review
+            // clears the reference through the effect above, which is the same
+            // path a browser Back takes. One rule, not two — a `setReference`
+            // here as well would be a second way to end the same state, and the
+            // second one is the one that goes stale.
             goToStep(0, "push");
           }}
         />
@@ -376,32 +514,6 @@ export function ApplicationShell() {
           </FormHandleProvider>
         </>
       )}
-    </div>
-  );
-}
-
-/**
- * The end of the flow, in the smallest form that tells the truth. Task 20
- * replaces this with `SuccessPanel`, which adds the application reference; it
- * is here now so the walk-through has an end rather than a form that clears its
- * own draft and sits there.
- */
-function SubmittedPanel({ onRestart }: { onRestart: () => void }) {
-  return (
-    <div role="status" className="flex flex-col items-start gap-4 rounded-md border border-border bg-card p-6">
-      <h2 className="text-h3">Application complete</h2>
-      <p className="max-w-[var(--measure)] text-detail text-muted-foreground text-pretty">
-        It validated, and it went nowhere. There is no server behind this form:
-        nothing was transmitted, no file was uploaded, and the draft this tab was
-        holding has been cleared.
-      </p>
-      <button
-        type="button"
-        onClick={onRestart}
-        className="min-h-11 rounded-md bg-primary px-5 text-ui font-medium text-primary-foreground transition-colors hover:bg-[var(--primary-hover)]"
-      >
-        Start again
-      </button>
     </div>
   );
 }

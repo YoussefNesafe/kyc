@@ -1414,12 +1414,36 @@ upload progress lives — progress is host policy, which is why it is not in the
 
 **Files:**
 - Create: `src/fields/document.tsx`
-- Modify: `src/app/layout.tsx` (register alongside `registerBuiltInFields()`)
+- Modify: `src/fields/registerBuiltInFields.ts` (the one registration point)
 - Test: `src/fields/document.test.tsx`
 
-Composes the engine's exported `FileDropzone` and `fileMatchesAccept`, adding a
+Composes the engine's exported `FileDropzone` and `acceptedFormatsLabel`, adding a
 timer-driven progress bar per file. Nothing leaves the page — say so in a comment
 at the top of the file, since a reviewer will look here first.
+
+**Corrected against the code, twice.**
+
+1. *Registration point.* The plan said `src/app/layout.tsx`. That is a server
+   component: importing `"use client"` field components there registers them in
+   the server graph and leaves the browser registry empty. There is exactly one
+   registration point and it is `registerBuiltInFields.ts`.
+
+2. *Not a new `type` string.* `DocumentField` is registered **for `file`**, not
+   as a `document` type of its own, and the config keeps `type: "file"`. The
+   engine does accept custom types — `validateFormConfig` allows any type in the
+   registry — but `buildFieldsSchema` hands every non-built-in field
+   `z.unknown().optional()` (`core/validation.ts:468`). Moving the document
+   fields onto a custom type would silently drop `required`, `accept` and
+   `maxSizeMB`: the required photo ID would stop gating Submit and a TIFF would
+   be accepted in silence. It would also remove the field's own foundation —
+   every per-file verdict is read from react-hook-form's per-index errors, which
+   exist only because the *built-in* schema raised one issue per index, and the
+   only replacement would be to judge files in the component, which is exactly
+   what `fileMatchesAccept` is unexported to prevent.
+
+   So the README's worked example is "put your own component behind a field
+   type", which is the registry's other purpose and the one that is safe to
+   recommend. `document.tsx` states the whole argument at the top.
 
 Commit: `feat(fields): add the document field with simulated upload progress`
 
@@ -1430,9 +1454,21 @@ Commit: `feat(fields): add the document field with simulated upload progress`
 **Files:**
 - Create: `src/components/SuccessPanel.tsx`
 - Create: `src/server/parseApplication.example.ts`
+- Modify: `src/components/ApplicationShell.tsx` (reconcile the success state with
+  the URL)
 
 `SuccessPanel` shows a monospace application reference and states explicitly that
 no data was transmitted.
+
+It also closes the one place the shell's thesis broke: submitting and then
+pressing Back left "Application complete" on screen at `/apply/documents` with the
+live region announcing "Step 4 of 5, Documents". Success is **not** given its own
+slug — `/apply/complete` could never be honoured on a reload or a deep link,
+because submitting clears the draft, and a URL that cannot be reloaded,
+bookmarked or shared is state wearing a route's clothes. Instead the reference is
+state that belongs to the review step, and any URL that is not the review step
+ends it; the guard then does the honest thing with an emptied application and
+sends it back to step 1.
 
 `parseApplication.example.ts` is real, typechecked `parseSubmission` code that
 nothing imports — a stronger demonstration than the comment the brief asked for.

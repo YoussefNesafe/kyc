@@ -175,6 +175,12 @@ describe("ApplicationShell", () => {
     render(<Harness />);
 
     expect(await screen.findByText(/your answers are back/i)).toBeDefined();
+    // And says nothing about files: this draft was left on the first step, where
+    // none had been chosen. The claim is keyed to the documents step's index,
+    // which used to fall back to `-1` when the slug could not be found — a
+    // comparison every draft satisfies, so every restore claimed files had been
+    // cleared. `Number.MAX_SAFE_INTEGER` fails the other way.
+    expect(screen.queryByText(/files are never kept/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => expect(slug).toBe("personal-details"));
@@ -182,12 +188,16 @@ describe("ApplicationShell", () => {
   });
 
   /**
-   * The regression test for a bug only a browser found: the engine's
-   * `SubmitField` disables itself on `!formState.isValid`, and the wizard's Next
-   * gate validates a subset of fields, which react-hook-form does not use to
-   * recompute `isValid`. A visitor who answered everything correctly reached the
-   * review step with a dead Submit button and nothing to explain it. The shell
-   * re-validates on arrival; this asserts the button is live.
+   * The regression test for a bug only a browser found. The engine's
+   * `SubmitField` disables itself on `!formState.isValid`, and react-hook-form's
+   * `formState` is a lazy proxy: nothing subscribes to `isValid` until that
+   * button mounts, so the verdict published while the visitor was still on the
+   * documents step re-rendered nobody, and the snapshot the button read on its
+   * own first render was the initial `false`. A visitor who answered everything
+   * correctly reached the review step with a dead Submit and nothing to explain
+   * it. The shell re-publishes the verdict on arrival — after the subscriber
+   * exists — and this asserts the button is live. The full mechanism, and the
+   * upstream fix that is not available from here, are on the guard effect.
    */
   it("leaves Submit usable on a review step reached with a complete application", async () => {
     const file = new File(["x"], "passport.pdf", { type: "application/pdf" });
@@ -236,6 +246,75 @@ describe("ApplicationShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => expect(liveRegionText()).toBe("Step 2 of 5, Your details"));
+  });
+
+  /**
+   * The guard's notice belongs to the step it sent the visitor to, and to that
+   * visit of it. Before this it was only *hidden* when they moved on, so
+   * arriving back on the same step re-raised a correction about a URL typed two
+   * navigations ago — a notice appearing for no reason the visitor could
+   * connect to anything they had just done.
+   */
+  it("does not re-raise the progress notice on a later visit to the same step", async () => {
+    slug = "review";
+    render(<Harness />);
+
+    await waitFor(() => expect(slug).toBe("account-type"));
+    expect((await screen.findByRole("status")).textContent).toMatch(/is not open yet/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /fill this step with sample data/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(slug).toBe("personal-details"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    await waitFor(() => expect(slug).toBe("account-type"));
+    expect(screen.queryByText(/is not open yet/i)).toBeNull();
+  });
+
+  /**
+   * The success state is a fact about the review step, and the URL is allowed to
+   * contradict it. Before this, submitting and then going Back left "Application
+   * complete" on screen at `/apply/documents` with the live region announcing
+   * "Step 4 of 5, Documents" — in a shell whose whole claim is that the URL is
+   * the step, the one screen where the claim was false.
+   */
+  it("shows a reference and states that nothing was transmitted, then yields to the URL", async () => {
+    const file = new File(["x"], "passport.pdf", { type: "application/pdf" });
+    seedDraft(sampleValues({ country: "DE", accountType: "individual" }));
+    slug = "documents";
+    render(<Harness />);
+
+    const inputs = await waitFor(() => {
+      const found = document.querySelectorAll<HTMLInputElement>("input[type=file]");
+      expect(found.length).toBeGreaterThan(0);
+      return found;
+    });
+    for (const input of inputs) {
+      Object.defineProperty(input, "files", { value: [file], configurable: true });
+      fireEvent.change(input);
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(slug).toBe("review"));
+
+    const submit = await waitFor(() => {
+      const button = screen.getByRole("button", { name: /submit application/i }) as HTMLButtonElement;
+      expect(button.disabled).toBe(false);
+      return button;
+    });
+    fireEvent.click(submit);
+
+    expect(await screen.findByText(/no data was transmitted/i)).toBeDefined();
+    // The reference is the one thing on that screen that looks like it came back
+    // from a server, so its shape is asserted rather than its presence.
+    expect(screen.getByText(/^MM-[0-9A-Z]{4}-[0-9A-Z]{4}$/)).toBeDefined();
+
+    // A browser Back is nothing but a slug change, which is how it arrives here.
+    setSlug("/apply/documents");
+    await waitFor(() => expect(screen.queryByText(/no data was transmitted/i)).toBeNull());
+    // And the application really is gone: the draft went with the submit, so the
+    // guard sends an empty application back to the first step.
+    await waitFor(() => expect(slug).toBe("account-type"));
   });
 
   /**

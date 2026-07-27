@@ -15,6 +15,9 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     include: ["src/**/*.test.{ts,tsx}"],
+    // Browser APIs jsdom lacks that the engine's Radix primitives assume — see
+    // the file for what and why.
+    setupFiles: ["./vitest.setup.ts"],
     // Green on an empty suite so `yarn lint && yarn typecheck && yarn test`
     // is a usable gate from the first commit, before any test exists.
     passWithNoTests: true,

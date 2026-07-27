@@ -27,4 +27,4 @@ export const APPLICATION_ENTRY_PATH = stepPath(STEP_SLUGS[0]);
  * moment `src/app/apply/` exists and this still says `false`, so the commit that
  * adds the shell cannot forget to flip it.
  */
-export const APPLICATION_ROUTE_IS_LIVE: boolean = false;
+export const APPLICATION_ROUTE_IS_LIVE: boolean = true;

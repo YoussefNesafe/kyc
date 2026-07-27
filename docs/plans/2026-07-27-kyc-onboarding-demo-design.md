@@ -149,7 +149,7 @@ export const de: Jurisdiction = {
   label: "Germany",
   taxFields: [
     { type: "masked", name: "de_steuerId", label: "Steuer-Identifikationsnummer",
-      mask: "00 000 000 000", required: true,
+      mask: "## ### ### ###", required: true,
       description: "11 digits, issued by the Bundeszentralamt für Steuern" },
   ],
 }
@@ -175,7 +175,7 @@ Each must differ in a way a visitor notices.
 - **DE** — masked 11-digit Steuer-ID, church-tax declaration radio.
 - **US** — state `select` driven by `optionsFrom: { field: "country", map }`,
   SSN/ITIN, W-9 backup-withholding checkbox.
-- **AE** — masked Emirates ID `784-0000-0000000-0`, visa-status radio, no TIN.
+- **AE** — masked Emirates ID `784-####-#######-#`, visa-status radio, no TIN.
 - **fallback** — self-declared tax residency and TIN, with a visible note
   naming which config resolved.
 

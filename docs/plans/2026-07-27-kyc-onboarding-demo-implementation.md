@@ -1182,9 +1182,9 @@ describe("resolveJurisdiction", () => {
 
 **Step 3: Write the jurisdiction files**
 
-- **`de.ts`** — masked `de_steuerId` (`00 000 000 000`, 11 digits, described as issued by the Bundeszentralamt für Steuern); `de_churchTax` radio (yes / no / not applicable).
-- **`us.ts`** — `us_state` select using `optionsFrom: { field: "country", map: { US: [...] } }`; masked `us_tin` (`000-00-0000`); `us_backupWithholding` checkbox referencing form W-9.
-- **`ae.ts`** — masked `ae_emiratesId` (`784-0000-0000000-0`); `ae_visaStatus` radio (residence visa / golden visa / GCC national); **no TIN at all** — the visible absence is the point.
+- **`de.ts`** — masked `de_steuerId` (`## ### ### ###`, 11 digits, described as issued by the Bundeszentralamt für Steuern); `de_churchTax` radio (yes / no / not applicable).
+- **`us.ts`** — `us_state` select using `optionsFrom: { field: "country", map: { US: [...] } }`; masked `us_tin` (`###-##-####`); `us_backupWithholding` checkbox referencing form W-9.
+- **`ae.ts`** — masked `ae_emiratesId` (`784-####-#######-#`); `ae_visaStatus` radio (residence visa / golden visa / GCC national); **no TIN at all** — the visible absence is the point.
 - **`default.ts`** — `tax_residency` country field and a plain `tax_tin` text field, plus a `fallbackNotice`.
 
 All copy must be original. Placeholders must be obviously fictional.

@@ -349,14 +349,14 @@ Expected: FAIL — the TIFF parses successfully because nothing checks type.
 In `form-builder/core/messages.ts`, add to the `Messages` type:
 
 ```ts
-  fileTypeRejected: (name: string, extension: string, accept: string) => string;
+  fileTypeRejected: (name: string, extension: string | undefined, formats: string) => string;
 ```
 
 and to `defaultMessages`:
 
 ```ts
-  fileTypeRejected: (name, extension, accept) =>
-    `${name} is ${extension ? `a ${extension} file` : "an unrecognised file type"} — accepted formats are ${accept}`,
+  fileTypeRejected: (name, extension, formats) =>
+    `${name} isn't in a format we accept${extension ? ` (${extension})` : ""}${formats ? ` — please upload ${formats}` : ""}`,
 ```
 
 **Step 4: Implement the schema change**
@@ -910,7 +910,7 @@ To `form-builder/index.ts`:
 
 ```ts
 export { FileDropzone } from "./ui/FileDropzone";
-export { fileMatchesAccept, fileExtensionLabel } from "./core/fileAccept";
+export { fileMatchesAccept, fileExtensionLabel, acceptedFormatsLabel } from "./core/fileAccept";
 export type { DraftStorage, DraftStorageOption } from "./core/autosave";
 ```
 

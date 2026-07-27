@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter_Tight, JetBrains_Mono } from "next/font/google";
+import { DemoBanner } from "@/components/DemoBanner";
 import "./globals.css";
 
 /**
@@ -47,6 +48,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${interTight.variable} ${jetBrainsMono.variable} h-full`}>
       <body className="flex min-h-full flex-col">
+        {/*
+         * First child of <body> and above every route, so no screen can render
+         * without it — including the success state, which is the screen most
+         * likely to be shared as a screenshot.
+         */}
+        <DemoBanner />
         {children}
       </body>
     </html>

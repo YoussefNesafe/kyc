@@ -166,6 +166,16 @@
    */
   --radius: 0.1875rem;
 
+  /*
+   * The persistent demo-safety strip. Near-black rather than teal, so the
+   * accent keeps meaning "you can act on this" and is not spent on a notice
+   * nobody can act on. The tag is the ochre warning colour lightened until it
+   * carries on ink — a warning colour on a warning, not a second brand accent.
+   */
+  --notice-surface: oklch(0.2037 0.0099 220.01); /* #12181A */
+  --notice-foreground: oklch(0.8494 0.0078 207.14); /* #C8CFD0 — 11.4:1 on the strip */
+  --notice-emphasis: oklch(1 0 0);
+  --notice-tag: oklch(0.8302 0.109 84.92); /* #E8C271 — 10.6:1 on the strip */
 }
 
 /*

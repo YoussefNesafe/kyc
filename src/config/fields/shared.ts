@@ -20,8 +20,16 @@ export const accountStepFields: AnyFieldConfig[] = [
     // change. It is framed as a safeguard rather than a limitation, because
     // that is what it is: a half-finished KYC form holding a date of birth and
     // a tax number should not outlive the tab on a shared machine.
+    //
+    // It also no longer opens by declaring the brokerage fictional and nothing
+    // transmitted. `DemoBanner` renders that above every screen including this
+    // one, and repeating it here would put the same three sentences twice on a
+    // visitor's first screen — which reads as boilerplate and gets skipped,
+    // taking the part they DO need to read with it. The banner states what
+    // never happens to the answers; this states where they go instead. Change
+    // one and check the other.
     content:
-      "Meridian Markets is a fictional brokerage and this is a portfolio demo. Nothing you type is sent anywhere: there is no server, no analytics and no upload. Your answers stay in this browser tab and nowhere else — refresh as often as you like, and closing the tab discards them, which is the point.",
+      "Your answers stay in this browser tab and nowhere else. Refresh as often as you like — closing the tab discards them, which is the point: a half-finished application holding a date of birth and a tax number has no business outliving the session on a shared machine.",
   },
   {
     type: "radio",

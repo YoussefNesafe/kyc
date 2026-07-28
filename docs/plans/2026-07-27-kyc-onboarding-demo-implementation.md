@@ -1604,11 +1604,30 @@ yarn lint && yarn typecheck && yarn test && yarn test:e2e
 ```
 All four must pass. Report the real output.
 
+**Run 2026-07-28.** All green, both repos.
+
+| Repo | Command | Result |
+|---|---|---|
+| demo | `yarn test` | 14 files, 167 tests, all passed (100.7 s) |
+| demo | `yarn test:e2e` | 2 specs passed (14.5 s), against a running `yarn start` |
+| demo | `yarn typecheck` | clean (29.1 s) |
+| demo | `yarn lint` | eslint clean; `check-engine-boundary: OK — 67 file(s)` |
+| demo | `yarn build` | compiled in 14.5 s; 9 static pages, 5 of them `/apply/[step]` |
+| engine | `yarn test` | 93 files, 1154 tests, all passed; `Type Errors no errors` (186.6 s) |
+| engine | `yarn typecheck` | clean (4.7 s) |
+| engine | `yarn lint` | 0 errors, 7 warnings — all `'cfg' is assigned a value but only used as a type` in three `.test-d` files, which is what a type test looks like. Pre-existing; exit 0. |
+
 **Step 2: Deploy**
 
 ```bash
 yarn dlx vercel@latest deploy --prod
 ```
+
+The Vercel CLI is **not installed on this machine** (`where vercel` → not found).
+`yarn dlx` is a Yarn 2+ command and this repo is on Yarn 1.22.19, so the working
+invocation is `npx vercel@latest deploy --prod` (or `yarn global add vercel`
+first). The first run is interactive: it asks for login, then scope, then
+link-to-project.
 
 **Step 3: Verify the deployed URL** — banner present, all three jurisdictions
 behave, DevTools Network shows nothing carrying input, Lighthouse mobile ≥ 90.
@@ -1616,7 +1635,84 @@ behave, DevTools Network shows nothing carrying input, Lighthouse mobile ≥ 90.
 **Step 4: Open the engine PR**
 
 The Phase A branch is independently useful. Push `feat/kyc-hardening` and open a PR
-describing the eight changes and that all are backwards-compatible.
+describing the nine additive changes and that all are backwards-compatible. (Nine,
+not the eight of E1–E8: Task 5b added `date.pickerBounds` after this plan was
+written.)
+
+### Engine defects found while building the demo
+
+Three. All three are worked around in host code because `src/form-builder/` is a
+vendored copy and is not editable from the demo repo; each workaround carries the
+analysis at its site. They belong in the PR body so the fixes land upstream.
+
+**D1 — `SelectField` loses a value applied while it is mounted but closed.**
+Measured, not inferred. With a draft holding `accountPurpose: "long-term"`,
+`fullName` and `de_churchTax`: opening `/apply/account-type` — the only step whose
+`select` is mounted — restored `fullName` and `de_churchTax` and left
+`accountPurpose` `undefined`; opening `/apply/personal-details`, where the same
+field is off screen, restored all three. The cause is the Radix `Select` behind
+`SelectField`, the one control in this form whose options are not mounted while it
+is closed. The visible consequence is worse than a blank control: the visitor
+resumes, presses Continue, and nothing happens, because the wizard gates on a
+field they cannot see they have lost. This was the state of the demo's headline
+feature until it was traced.
+Host workaround: `ApplicationShell.handleDraftRestore` re-applies the draft from
+the store one commit after `onDraftRestore` fires, when every control is mounted
+and settled.
+
+**D2 — `SubmitField` renders permanently disabled on a controlled-step review
+screen.** The root cause is **not** subset-trigger semantics, which is what an
+earlier version of this record asserted and got wrong: with a resolver present,
+`trigger(names)` runs the resolver and takes `isValid` from the *whole* error
+object (`react-hook-form/dist/index.esm.mjs:2650-2700`), and `@hookform/resolvers`
+keeps every issue the schema raised whatever `names` it was handed.
+
+The real cause is RHF's lazy `formState` proxy. Reading `formState.isValid` *is*
+the subscription — it marks `isValid` on `control._proxyFormState`, and only a key
+marked there makes `shouldRenderFormState` re-render the root `useForm`.
+`useDynamicForm` never touches `formState`, and nothing else does until
+`SubmitField` mounts — which happens only on the review step. So the snapshot
+`FormProvider` hands down is still the `isValid: false` it was created with;
+`SubmitField` reads that stale snapshot, disables itself, and *then* subscribes, by
+which point the review step changes no value and nothing publishes `isValid` again.
+
+Measured in Chrome at the moment Submit rendered disabled: internal
+`control._formState.isValid` `true`, react-side `formState.isValid` `false`,
+internal `errors` `[]`. Confirming half: marking `_proxyFormState.isValid` on step 1
+and changing nothing else brought the same walk to review with Submit **enabled**.
+Field-level reads do not substitute — `useController` marks keys `true` where the
+root test accepts only `"all"`.
+
+Correct upstream fix: `SubmitField.tsx:13` should read validity through
+`useFormState({ control })` rather than the root proxy on `useFormContext()`. That
+hook seeds from `control._formState` (the live internal value, not the render
+snapshot) and its mount effect calls `control._setValid(true)`, recomputing the
+verdict for a subscriber that arrived late. Both halves, closed inside the
+component that has the problem.
+Host workaround: a bare `form.trigger()` on arrival at the review step, which works
+for the dull reason that it runs after `SubmitField` has subscribed.
+
+**D3 — the `--fb-space-*` scale collapses 2.1× across one pixel of viewport.**
+The discontinuity is the defect; the absolute sizes are only how it is noticed.
+`--fb-space-7` drives every field label. Reading the engine's own fallbacks
+(3.738vw / 1.75vw / 0.728vw) against its own breakpoints (`tablet` 481px,
+`desktop` 1025px):
+
+| viewport | band | computed |
+|---|---|---|
+| 480px | mobile | 17.94px |
+| **481px** | tablet | **8.42px** |
+| 1024px | tablet | 17.92px |
+| **1025px** | desktop | **7.46px** |
+
+A label halves twice, each time across a single pixel of window width. The three
+bands are calibrated to reference widths of 375 / 800 / 1920 and are correct *at*
+those widths; between them they are viewport-relative with no clamp, so the
+laptop most people will open this on lands at the bottom of the desktop band.
+Host workaround: `src/app/globals.css` redefines the whole scale as static `rem`
+(`--fb-space-N = N × 0.125rem`, which is exactly what each band computes to at its
+own reference width), giving all three bands the same value so the engine's
+`tablet:`/`desktop:` variants become no-ops rather than jumps.
 
 ---
 

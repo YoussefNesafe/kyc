@@ -167,19 +167,31 @@ handful of visitors.
 
 ### Bundle composition
 
-`@next/bundle-analyzer` wired into `next.config.ts` behind `ANALYZE=1`, inert in
-a normal build. This names the contents of the 291 KiB client chunk instead of
+> **Corrected during implementation, 2026-07-28.** This section originally
+> specified `@next/bundle-analyzer` behind an `ANALYZE=1` flag, with `cross-env`
+> to make that flag work in PowerShell. It was implemented, and it silently did
+> nothing: `@next/bundle-analyzer` is a **webpack** plugin, and this project
+> builds with Turbopack, which is the Next 16 default. The build succeeded, the
+> flag was set, and `.next/analyze/` was never written — a no-op that reports
+> success is exactly the failure this repo's other checks are written to avoid.
+>
+> The correct tool ships with Next itself: `next experimental-analyze`, added in
+> v16.1 and wired into Turbopack's module graph
+> (`node_modules/next/dist/docs/01-app/02-guides/package-bundling.md`). `yarn
+> analyze` now runs that. Both `@next/bundle-analyzer` and `cross-env` were
+> removed rather than left in place unused.
+
+`yarn analyze` names the contents of the 291 KiB client chunk instead of
 inferring them. The README fingers `react-phone-number-input`'s 250-flag SVG
 barrel, imported wholesale by both `CountryField` and `PhoneField`; the analyzer
-either confirms that or finds the real culprit.
+either confirms that or finds the real culprit. It is an interactive UI rather
+than a report generator, so what lands in the committed baseline is the
+Lighthouse view of the same problem — unused bytes, script evaluation time,
+transfer size.
 
-`cross-env` is added because `ANALYZE=1 next build` is a POSIX-ism that fails in
-PowerShell, which is one of the two shells this repo is developed in.
-
-All four additions — `lighthouse`, `chrome-launcher`, `@next/bundle-analyzer`,
-`cross-env` — are devDependencies. Nothing reaches the client bundle, the
-no-egress guard is untouched, and the "no analytics, nothing phones home" claim
-stays true.
+`lighthouse` and `chrome-launcher` are devDependencies. Nothing reaches the
+client bundle, the no-egress guard is untouched, and the "no analytics, nothing
+phones home" claim stays true.
 
 ### The gate
 

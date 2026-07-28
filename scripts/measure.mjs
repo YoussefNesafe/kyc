@@ -131,7 +131,18 @@ async function runOnce(url) {
     }
     return sample;
   } finally {
-    await chrome.kill();
+    // On Windows, chrome-launcher removes the temporary user-data directory it
+    // created, and Chrome frequently still holds a handle to it for a moment
+    // after exit — the removal then fails with EPERM. That is a cleanup race in
+    // the launcher, not a bad measurement: the run above already completed and
+    // its numbers are sound. Letting it propagate aborts the whole sweep partway
+    // through, discarding the runs that succeeded, so it is swallowed here. A
+    // stray directory in %TEMP% is the entire cost.
+    try {
+      await chrome.kill();
+    } catch (error) {
+      process.stderr.write(`    (ignored: could not clean up Chrome — ${error.message})\n`);
+    }
   }
 }
 

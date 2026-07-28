@@ -1,0 +1,5 @@
+# Vitest imports scripts/*.mjs through esbuild, and a CRLF shebang is a parse
+# error once it does — a bug that only appears on a fresh clone, because git
+# stores LF and core.autocrlf hands the working tree CRLF. Pinning the checkout
+# keeps the file the runner sees identical to the file that was committed.
+*.mjs text eol=lf

@@ -43,7 +43,9 @@ describe("renderRgba", () => {
 
   it("renders a full opaque buffer at every shipped size", () => {
     // Driven by SIZES rather than a literal [16, 32]: adding a size to the .ico
-    // must not quietly leave that size unrendered by anything.
+    // must not quietly leave that size unrendered by anything. Pinned first,
+    // because a loop over a shrinking list would cover less and still pass.
+    expect(SIZES).toEqual([16, 32]);
     for (const size of SIZES) {
       expect(renderRgba(size)).toHaveLength(size * size * 4);
       // Centre of the vertical stroke, opaque at both sizes.

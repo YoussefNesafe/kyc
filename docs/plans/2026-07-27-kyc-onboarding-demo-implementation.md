@@ -1692,9 +1692,14 @@ browser context from the landing page through submit.
       the immutable chunks; `x-nextjs-prerender: 1`; `strict-transport-security` present.
 
 Two things not re-checkable against the deployed origin, and not substituted for:
-`yarn test` / `yarn test:e2e` (they run against a local build by construction — the
-egress spec's guarantee is about the bundle, which is byte-identical), and
-`scripts/check-engine-boundary.mjs` (a source-tree check with no deployed equivalent).
+
+- `yarn test` / `yarn test:e2e` run against a local build by construction; Playwright's
+  `webServer` starts `yarn build && yarn start` and has no mode that points the egress
+  spec at a remote URL. The deployed bundle is **not** assumed to be byte-identical to a
+  local one — Vercel rebuilds from source and the chunk hashes differ — which is exactly
+  why the egress property was re-checked by hand above, on the deployed origin, rather
+  than inferred from the green spec.
+- `scripts/check-engine-boundary.mjs` is a source-tree check with no deployed equivalent.
 
 One unrelated wart noticed while driving the flow, not deployment-specific: on a short
 viewport (≈650 px of usable height) the country combobox's popover flips to

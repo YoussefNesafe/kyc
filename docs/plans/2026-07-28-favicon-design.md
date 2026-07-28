@@ -15,7 +15,7 @@ This replaces it with a drawn mark.
 | Area | Decision |
 |---|---|
 | Source | Mark drawn for this project. No supplied artwork, no third-party asset. |
-| Demo signalling | None in the icon. The banner and `robots: noindex, nofollow` carry it. |
+| Demo signalling | None in the icon. The banner carries it. (Amended 2026-07-28: this row originally also cited `robots: noindex, nofollow`, which was reversed later the same day — see `2026-07-28-seo-and-web-vitals-design.md`. The banner still carries it; the search result is now disambiguated by titles and JSON-LD instead.) |
 | Concept | "Meridian datum" — a full-height vertical stroke met by a shorter crossbar. |
 | Colour | `--primary` `#0F5C5A` tile, `--primary-foreground` white figure. |
 | Files | `src/app/icon.svg` (primary) + `src/app/favicon.ico` (fallback, regenerated). |
@@ -103,6 +103,11 @@ place and ignored — it is not dormant, it is an actively served competing icon
 
 `apple-icon` and `manifest` are not shipped. A `noindex` demo linked from a
 profile does not get added to a home screen.
+
+> **Amended 2026-07-28.** The site is no longer `noindex`, so the premise of that
+> last sentence is gone. Whether an indexed demo earns an `apple-icon` and a
+> manifest is deliberately left open rather than decided here — see the "Out of
+> scope" section of `2026-07-28-seo-and-web-vitals-design.md`.
 
 ### Theme handling is a non-issue
 

@@ -25,11 +25,14 @@ touches no JSX at all — the claim is worked through in
 yarn install
 yarn dev          # http://localhost:3000
 
-yarn test         # vitest — 14 files, 180 tests
-yarn test:e2e     # playwright — keyboard completion + a data-egress guard
+yarn test         # vitest — 15 files, 194 tests
+yarn test:e2e     # playwright — keyboard completion, a data-egress guard, crawler output
 yarn typecheck    # tsc --noEmit
 yarn lint         # eslint + scripts/check-engine-boundary.mjs
 yarn build
+
+yarn measure <url> [--runs=5] [--out=file]   # Lighthouse, median + spread
+yarn analyze                                  # build with the bundle treemap
 ```
 
 `yarn test:e2e` runs against a **production build**, because the things it
@@ -323,7 +326,8 @@ look like data exfiltration in a diff.
 | Files never leave the tab | `document.tsx` contains no `fetch`/`FormData`/`FileReader`/`createObjectURL`; drafts are sanitised by the engine, which refuses to persist `file`, `password`, `otp` and `signature` values at all |
 | Drafts do not outlive the tab | `sessionStorage`, not `localStorage` — this is a public URL and a half-finished draft holds a name, a date of birth and a taxpayer number |
 | The banner cannot be missed | Rendered as the first child of `<body>` in the **root** layout, above every route including the success panel — the screen most likely to be screenshotted |
-| Not indexed | `robots: { index: false, follow: false }`. A convincing brokerage form asking for a passport photo should not rank for "open a brokerage account"; the banner would be the only thing separating it from a phishing page for a hurried visitor |
+| A search result cannot pass for a real broker | Indexed since 2026-07-28, having been `noindex` before it. The risk that motivated the old setting — a convincing brokerage form asking for a passport photo, ranking for "open a brokerage account" — is answered instead of avoided: every title names the author rather than the brokerage, every description leads with the disclaimer, and the page's JSON-LD types it `SoftwareSourceCode` authored by a `Person`, never an `Organization`. [`src/config/seo.test.ts`](src/config/seo.test.ts) fails if a title or description ever mentions the brand |
+| Preview deployments stay out of the index | `robots.ts` serves `Disallow: /` for anything where `VERCEL_ENV` is not `production` — every preview URL serves identical content, and indexed they would compete with the canonical site for its own queries |
 
 The sentinels are the part that makes the egress test non-vacuous. Every sample
 profile is built from invented words (`Quillon`, `Tidewater`) and the reserved
@@ -478,8 +482,11 @@ also running Chrome and the test runner.
 ```
 src/
 ├─ app/
-│  ├─ layout.tsx              fonts, DemoBanner, robots: noindex
-│  ├─ page.tsx                landing
+│  ├─ layout.tsx              fonts, DemoBanner, metadataBase + title template
+│  ├─ page.tsx                landing, canonical, JSON-LD
+│  ├─ robots.ts               production allows; every preview disallows
+│  ├─ sitemap.ts              built from the route table
+│  ├─ opengraph-image.tsx     1200×630 card, generated at build time
 │  └─ apply/
 │     ├─ layout.tsx           FormRenderer lives HERE, so it survives [step] navigation
 │     └─ [step]/page.tsx      slug → index, generateStaticParams; renders null by design
@@ -490,6 +497,7 @@ src/
 │  ├─ buildFormConfig.ts      composes one FormConfig; stamps visibleWhen + badge
 │  ├─ applicationForm.ts      the built config, and the draft-reference-date freeze
 │  ├─ steps.ts                the five slugs, and slug ↔ index
+│  ├─ seo.ts                  titles, descriptions, sitemap and robots, from the route table
 │  └─ sampleData.ts           per-jurisdiction profiles + SAMPLE_SENTINELS
 ├─ fields/
 │  ├─ document.tsx            the demo's upload field, registered FOR `file`

@@ -1,6 +1,15 @@
 import type { Metadata } from "next";
 import { Inter_Tight, JetBrains_Mono } from "next/font/google";
 import { DemoBanner } from "@/components/DemoBanner";
+import {
+  absoluteUrl,
+  AUTHOR_NAME,
+  LANDING_TITLE,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_URL,
+  TITLE_TEMPLATE,
+} from "@/config/seo";
 import "./globals.css";
 
 /**
@@ -31,30 +40,60 @@ const jetBrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+/*
+ * This site was `robots: { index: false, follow: false }` until 2026-07-28, and
+ * the comment that sat here made a real argument for it: a convincing
+ * account-opening form for a brokerage that does not exist, asking for a date of
+ * birth, a taxpayer number and a photograph of a passport, should not turn up in
+ * front of someone who was looking for the real thing.
+ *
+ * That is reversed, deliberately, and the argument is answered rather than
+ * dropped — in `@/config/seo`, which is where the three measures that answer it
+ * live: titles that name the author instead of the fictional broker,
+ * descriptions that lead with the disclaimer, and structured data that types the
+ * page as source code written by a person. Read that file before changing any of
+ * this; the reasoning is one paragraph and it is the whole reason indexing this
+ * is defensible.
+ *
+ * `metadataBase` is set here, and only here: it is what lets every child segment
+ * hand Next a relative URL and get an absolute one in the rendered `<head>`.
+ */
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "Open an account — Meridian Markets",
-    template: "%s — Meridian Markets",
+    default: LANDING_TITLE,
+    template: TITLE_TEMPLATE,
   },
-  description:
-    "A portfolio demonstration of a jurisdiction-aware KYC onboarding flow. Nothing entered is sent anywhere, uploaded or stored on a server.",
-  /*
-   * Kept out of search results on purpose, and not because the work is
-   * embarrassing.
-   *
-   * This is a convincing account-opening form for a brokerage that does not
-   * exist, asking for a date of birth, a taxpayer number and a photograph of a
-   * passport. Ranking for "open a brokerage account" would put it in front of
-   * people who arrived looking for the real thing, and the demo banner is then
-   * the only difference between this and a phishing page — a difference a
-   * hurried visitor may not register. Nobody is meant to *find* this; it is
-   * linked from a profile and from proposals, and a link works whether or not
-   * a crawler has indexed it.
-   *
-   * `follow: false` as well as `index: false`: there is no reason to spend a
-   * crawler's attention walking five steps of a form that goes nowhere.
-   */
-  robots: { index: false, follow: false },
+  description: SITE_DESCRIPTION,
+  authors: [{ name: AUTHOR_NAME }],
+  creator: AUTHOR_NAME,
+  applicationName: SITE_NAME,
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    title: LANDING_TITLE,
+    description: SITE_DESCRIPTION,
+    url: absoluteUrl("/"),
+    locale: "en",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: LANDING_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      // The OG card is the only image worth previewing, and it carries the
+      // "Portfolio demonstration" label — so a large preview works in favour of
+      // the disambiguation rather than against it.
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
 };
 
 export default function RootLayout({

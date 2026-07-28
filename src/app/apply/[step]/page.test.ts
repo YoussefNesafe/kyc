@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { metadataForStep } from "@/config/seo";
 import { STEP_SLUGS } from "@/config/steps";
 
 const notFound = vi.fn(() => {
@@ -25,10 +26,16 @@ describe("/apply/[step]", () => {
     expect(dynamicParams).toBe(false);
   });
 
-  it("titles the tab with the step", async () => {
-    expect(await generateMetadata({ params: Promise.resolve({ step: "tax-residency" }) })).toEqual({
-      title: "Tax residency",
-    });
+  it("serves the step's own metadata", async () => {
+    // Compared against `metadataForStep` rather than against a literal: what
+    // that block should CONTAIN — the numbered title, the disclaimer, the
+    // canonical — is asserted once in `src/config/seo.test.ts`. This route's
+    // contract is only that it delegates there and awaits its params, and a
+    // second copy of the expected strings here would be one more place to
+    // forget when a step is renamed.
+    expect(await generateMetadata({ params: Promise.resolve({ step: "tax-residency" }) })).toEqual(
+      metadataForStep("tax-residency"),
+    );
   });
 
   it("adds no title it cannot name", async () => {

@@ -1,7 +1,19 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { JURISDICTIONS } from "@/config/jurisdictions";
 import { APPLICATION_ENTRY_PATH, APPLICATION_ROUTE_IS_LIVE } from "@/config/routes";
+import { absoluteUrl, landingStructuredData, SITE_DESCRIPTION } from "@/config/seo";
 import { STEP_SLUGS, STEP_TITLES } from "@/config/steps";
+
+/**
+ * No `title` here on purpose. `LANDING_TITLE` is already a whole sentence and it
+ * is the root layout's `title.default`; setting it again in this segment would
+ * push it through `TITLE_TEMPLATE` and produce the attribution twice.
+ */
+export const metadata: Metadata = {
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: absoluteUrl("/") },
+};
 
 /**
  * The landing page.
@@ -73,6 +85,28 @@ function asListEntry(label: string): string {
 export default function Home() {
   return (
     <main className="flex-1 pb-20">
+      {/*
+       * Structured data, on this page only.
+       *
+       * It says: source code, written by a person, free to look at. That is the
+       * one unambiguous signal available to a crawler that has just been handed
+       * five screens of a brokerage application — see the note at the top of
+       * `@/config/seo` for why it is typed this way and not as an organisation.
+       *
+       * `JSON.stringify` of an object this module built, never of anything a
+       * visitor typed, so there is no injection surface here today. The `<`
+       * escape is belt-and-braces against the day someone feeds this a string
+       * from elsewhere: a literal `</script>` inside a JSON string would end the
+       * block early, and `<` is still valid JSON that parsers read back
+       * identically.
+       */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(landingStructuredData()).replace(/</g, "\\u003c"),
+        }}
+      />
+
       {/* --- Hero ---------------------------------------------------------- */}
       <section className="shell pt-12 tablet:pt-16 desktop:pt-24">
         <p className="text-eyebrow font-semibold uppercase tracking-eyebrow text-muted-foreground">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { STEP_SLUGS, STEP_TITLES, stepIndexForSlug, type StepSlug } from "@/config/steps";
+import { metadataForStep } from "@/config/seo";
+import { STEP_SLUGS, stepIndexForSlug, type StepSlug } from "@/config/steps";
 
 type StepParams = { params: Promise<{ step: string }> };
 
@@ -23,10 +24,21 @@ export function generateStaticParams(): Array<{ step: StepSlug }> {
  */
 export const dynamicParams = false;
 
+/**
+ * Title, description, canonical and Open Graph block for the step.
+ *
+ * All of it comes from `@/config/seo`, which builds it from the same
+ * `STEP_SLUGS`/`STEP_TITLES` this file routes on — so a renamed or reordered
+ * step carries into the search result with no second edit, and `seo.test.ts`
+ * fails if it ever stops.
+ *
+ * `metadataForStep` returns `{}` for a slug that is not a step rather than
+ * throwing. This function runs BEFORE the component below decides to
+ * `notFound()`, and a throw here would turn a clean 404 into a 500.
+ */
 export async function generateMetadata({ params }: StepParams): Promise<Metadata> {
   const { step } = await params;
-  const title = STEP_TITLES[step as StepSlug];
-  return title ? { title } : {};
+  return metadataForStep(step);
 }
 
 /**

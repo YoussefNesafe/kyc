@@ -14,7 +14,10 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: "jsdom",
-    include: ["src/**/*.test.{ts,tsx}"],
+    // scripts/ is collected too: the favicon generator is real code with real
+    // tests, and a config that only sees src/ would skip them silently rather
+    // than fail — the suite would stay green while nothing ran.
+    include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.{ts,tsx}"],
     // Browser APIs jsdom lacks that the engine's Radix primitives assume — see
     // the file for what and why.
     setupFiles: ["./vitest.setup.ts"],

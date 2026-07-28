@@ -17,7 +17,7 @@ touches no JSX at all — the claim is worked through in
 > [Demo safety, and what enforces it](#demo-safety-and-what-enforces-it) for the
 > tests that fail if it stops being true.
 
-**Live:** _add the deployed URL here._
+**Live:** <https://kyc-six.vercel.app/>
 **Package manager:** `yarn`. (Not `pnpm` — there is one lockfile and it is
 `yarn.lock`.)
 
@@ -54,8 +54,8 @@ of costing you a rebuild.
   file *metadata* only: a `File` handle cannot be persisted, so the visitor is
   told to re-choose rather than silently losing an upload.
 - **Per-file document validation.** A `.tiff` on a JPG/PNG/PDF field is rejected
-  by name with its format spelled out, no progress bar ever starts for it, and
-  its neighbours in the same drop are judged independently.
+  by name with its format spelled out, no upload is ever started for it, and its
+  neighbours in the same drop are judged independently.
 - **Route-per-step without remounting the form.** `/apply/[step]` with the
   form living in the layout above the dynamic segment, so react-hook-form state
   survives navigation, Back works, and deep links past your progress redirect.
@@ -331,9 +331,14 @@ profile is built from invented words (`Quillon`, `Tidewater`) and the reserved
 before it makes any claim about the network — an empty form would pass the
 network assertion perfectly.
 
-Confirmed by hand as well as by the spec: a complete flow on a production build
-makes **37 requests, all GET, all same-origin**, every one a static asset or a
-Next RSC prefetch of the five step routes. No POST at all.
+Confirmed by hand as well as by the spec, **on the deployed origin**: a complete
+walk in one tab — landing page, all five steps, two files attached, submit —
+makes **43 requests, all GET, all same-origin**, every one a static asset, a
+favicon revalidation, or a Next RSC prefetch of the five step routes. No POST at
+all, no request body of any kind, and no `Set-Cookie` in any response. The same
+walk against a local production build made 37; the extra six are RSC segment
+prefetches and `304` favicon revalidations that the CDN's caching headers
+provoke and `next start` does not.
 
 ---
 
@@ -402,46 +407,69 @@ fast feedback. If the two ever disagree, the script wins.
 
 ---
 
-## Performance: the number that is not 90
+## Performance: the number that sits on 90
 
-**Lighthouse mobile, production build, three runs each:**
+**Lighthouse mobile against the deployed origin**, `https://kyc-six.vercel.app`,
+three runs each:
 
-| Route | Runs | Median |
-|---|---|---|
-| `/` | 82 / 94 / 96 | **94** |
-| `/apply/account-type` | 65 / 70 / 73 | **70** |
+| Route | Runs | Median | FCP | LCP | TBT | CLS | Transfer |
+|---|---|---|---|---|---|---|---|
+| `/` | 98 / 98 / 98 | **98** | 1.09 s | 2.29 s | 85 ms | 0 | 570 KiB |
+| `/apply/account-type` | 79 / 90 / 89 | **89** | 1.08 s | 2.28 s | 380 ms | 0 | 581 KiB |
 
-CLS is 0 everywhere. The form routes miss the ≥ 90 target and I would rather you
-read that here than find it yourself.
+A confirming second set of three on the form route scored 82 / 90 / 91 (median
+**90**). Over all six runs the median is 89.5, so the honest statement is that
+the form route **sits on the 90 line rather than above it** — it clears the
+target about half the time and the run-to-run spread (79 to 91) is wider than
+the distance to the target.
 
-**Cause.** One 286 KiB gzipped client chunk (1.1 MB raw), of which Lighthouse
-reports ~195 KiB unused on the first step, and ~1.4 s of main-thread script
-evaluation. LCP is 91 % render delay — the page is not waiting on the network,
-it is waiting on JavaScript. The single biggest contributor is
+The same measurement on `yarn build && yarn start`, on a machine simultaneously
+running Chrome and the test runner, gave **94** on `/` and **70** on
+`/apply/account-type`. Two things changed at once between those numbers and the
+ones above — the origin *and* what else the measuring machine was doing — so the
++19 on the form route cannot be attributed to the deployment alone, and I am not
+going to pretend it can. What can be said is that the deployed numbers are the
+ones a visitor actually gets, and they are the ones quoted here for that reason.
+
+CLS is 0 on every run of both routes, deployed and local.
+
+**Cause, re-measured deployed.** One client chunk of **291 KiB over the wire**
+(brotli; 1.09 MB raw), of which Lighthouse reports **186 KiB unused** on the
+first step, and 1.2 s of main-thread work — 758 ms of it script evaluation. LCP
+is **68 % render delay** and 32 % TTFB; on localhost the split was 91 % render
+delay, because there was no real network latency to occupy the other third. The
+shape of the problem is unchanged: the page is not waiting on the network, it is
+waiting on JavaScript. The single biggest contributor is
 `react-phone-number-input`'s 250-flag SVG barrel, imported wholesale by both the
 engine's `CountryField` and its `PhoneField`.
 
-**What was measured and rejected.** Stubbing the flag barrel entirely took one
-run from 60 to 69; dropping the JetBrains Mono preload on top of that reached 76.
-Neither shipped:
+**What was measured and rejected** (locally, against the 70 baseline). Stubbing
+the flag barrel entirely took one run from 60 to 69; dropping the JetBrains Mono
+preload on top of that reached 76. Neither shipped:
 
 - The flag stub deletes the flags from **both** country selectors — the country
   field and the phone field — for five points. On a form whose entire subject is
   which country you live in, that is the wrong trade.
-- The font delta did not survive repetition. FCP is bimodal on this hardware at
-  1.06 s / 3.02 s whether or not mono is preloaded, so the flattering single-run
-  reading was noise, and the change was reverted rather than kept with a
-  confident comment attached.
+- The font delta did not survive repetition. FCP is bimodal at roughly 1.1 s /
+  3.0 s whether or not mono is preloaded, so the flattering single-run reading
+  was noise, and the change was reverted rather than kept with a confident
+  comment attached. **That bimodality reproduced on the deployed origin**: five
+  of six form-route runs landed at 0.9–1.1 s FCP and one at 2.9 s, and that one
+  is the 82. The other low run, the 79, had a perfectly normal 1.1 s FCP and lost
+  its points to a 3.9 s LCP instead — so the two outliers do not share a cause,
+  and neither of them is worth a fix aimed at the other.
 
 **Why the remaining gap stands.** Closing it means not shipping the form engine
 to first paint — deferring the thing the demo exists to demonstrate behind a
-spinner to win a synthetic score. The measured ceiling of the proportionate fixes
-was 76. I took the working form.
+spinner to win a synthetic score. I took the working form. Deployment has since
+carried the route to the edge of the target on its own, which does not change
+that judgement, only the size of what is left.
 
-Measured with Lighthouse 12.8.2, mobile preset, default simulated throttling,
-against `yarn build && yarn start` on a machine also running Chrome and the test
-runner. Numbers on the deployed URL should be better; these are the ones I can
-prove.
+Measured with Lighthouse 12.8.2, mobile form factor, default simulated
+throttling (150 ms RTT, 1.6 Mbps, 4× CPU), headless Chrome, nothing else running
+on the machine. The localhost figures quoted for comparison were taken with the
+same tool and settings against `yarn build && yarn start`, on a machine that was
+also running Chrome and the test runner.
 
 ---
 
@@ -488,6 +516,19 @@ Both have upstream fixes described in the engine's PR.
   verdict nobody publishes again. The host re-publishes it with a bare
   `trigger()`. The upstream fix is `useFormState({ control })` in
   `SubmitField.tsx:13`.
+
+A third gap was found on the deployed build and is **not** worked around,
+because the right place to fix it is upstream:
+
+- **No `autocomplete` on the text fields.** `fullName`, `email`,
+  `residentialAddress`, `postalCode` and `city` render with no `autocomplete`
+  attribute. Only the phone field has one, and that comes from
+  `react-phone-number-input` rather than from the engine — Chrome's Issues panel
+  is the thing that says so, which is why it survived a console-only check. For
+  a form asking a person for their own name and address this is a WCAG 2.2 AA
+  1.3.5 (Identify Input Purpose) gap, not merely an inconvenience. The fix is an
+  `autocomplete` passthrough on `BaseField`, forwarded by the text and email
+  fields, so it belongs in the engine's PR beside the other three.
 
 ---
 

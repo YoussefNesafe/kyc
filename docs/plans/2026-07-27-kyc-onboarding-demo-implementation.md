@@ -1577,6 +1577,132 @@ Two corrections to the checklist itself, established during the build:
 
 Fix what fails; commit fixes individually.
 
+### The same checklist, re-run against the deployed origin
+
+**Worked 2026-07-28, against `https://kyc-six.vercel.app/`.** Everything above was
+measured on `yarn build && yarn start`. This is the second, independent run against the
+artifact the demo's claims are actually about: Vercel's CDN, brotli, real network
+latency, production React, and a machine not also running vitest. Two complete walks
+were driven in Chrome — one exploratory, one clean single-tab walk in an isolated
+browser context from the landing page through submit.
+
+- [x] **Changing country changes the fields around it** — all four branches driven live,
+      in one session, by changing only the country field: DE → masked Steuer-ID
+      (placeholder `## ### ### ###`, sample value rendered `00 000 001 234`) + church-tax
+      radio; US → state select ("Derived from the country above") + masked TIN +
+      backup-withholding checkboxes badged "Only asked in the United States"; AE → the
+      static "The UAE levies no personal income tax, so this application asks you for no
+      taxpayer number" note + Emirates ID + residency-status radio + emirate select;
+      FR → the fallback notice + country of tax residence + free-text TIN +
+      self-declaration. With no country chosen the step shows the country field alone.
+- [x] **`.tiff` rejected with a specific reason** — `data-status="rejected"`, message
+      `scan.tiff isn't in a format we accept (TIFF) — please upload JPG, JPEG, PNG or PDF`.
+- [~] **Oversized file rejected, "no progress bar ever created for it"** — the rejection
+      is right (`File must be smaller than 5 MB` on a 7.0 MB PNG, no request made), but
+      **the claim as this document worded it is wrong and is corrected here**. A
+      `MutationObserver` watching `[role="progressbar"]` for the whole session recorded a
+      bar labelled `Simulated upload of oversized.png` **added at 7410.8 ms and removed at
+      7411.7 ms** — it exists for **0.9 ms**, well inside one 16.7 ms frame, so it is
+      never painted. The cause is in `document.tsx:294-318`: `acceptFiles` marks kept
+      files pending (`percent: 0`) *before* `await trigger(...)` returns the verdict, so
+      one render happens in the uploading state. `startUpload` is never called for a
+      rejected file, so no interval and no upload ever start. For contrast, the two
+      accepted files in the same session held their bars for 722 ms and 728 ms.
+      The README bullet has been changed from "no progress bar ever starts for it" to
+      "no upload is ever started for it", which is what is actually true.
+- [x] **Under-18 DOB gives a human message** — picking 15 July 2015 in the picker (the
+      day is selectable, per `pickerBounds`) raised
+      `You must be 18 or older to open a Meridian Markets account.` on a `role="alert"`,
+      set `aria-invalid="true"` on the trigger and wired it into `aria-describedby`.
+      Pressing Next left the URL on `/apply/personal-details`.
+- [x] **Refresh mid-flow restores and says so** — reload on `/apply/documents` stayed on
+      step 4 and showed "Your answers are back… Files are never kept, so any documents you
+      had chosen need choosing again." A *fresh document load* of `/apply/account-type`
+      after that redirected forward to `/apply/documents` (the draft's recorded step);
+      walking Back to step 1 from there showed the `accountPurpose` select holding
+      "Long-term investing" and the `individual` radio checked, so the D1 workaround holds
+      on the deployed build.
+- [x] **Banner visible on every screen including success** — landing, all five steps and
+      the success panel. It is in the server-rendered HTML of `/` (checked with `curl`),
+      so it is present before hydration, and it is on the 404 page too.
+- [x] **Zero requests carrying form input** — the clean single-tab walk (landing → five
+      steps → two files attached → submit) made **43 requests, every one GET, every one
+      `kyc-six.vercel.app`**: the document, 2 self-hosted `.woff2`, 2 CSS, 10 JS chunks,
+      6 favicon fetches (1 × 200, 5 × 304) and 22 `?_rsc=` segment prefetches of the five
+      step routes — 15 + 22 + 6 = 43. No POST, no request body, no `Set-Cookie`, no
+      WebSocket, no
+      `sendBeacon`. No URL contains `Quillon`, `Tidewater` or `sample.invalid`, and the
+      review screen was confirmed to be showing `Quillon` before the claim was made.
+      Storage after submit: `sessionStorage` holds only
+      `meridian-kyc:config-reference-date`, the draft key is gone, `localStorage` is
+      empty throughout.
+      **Deployed differs from local here: 43 requests, not the 37 recorded above.** The
+      extra six are RSC segment prefetches and `304` favicon revalidations that the CDN's
+      `cache-control` provokes and `next start` does not. The property being claimed is
+      unchanged; the number in the README has been re-anchored to 43.
+- [x] **Fonts are self-hosted** — the only two font requests are
+      `/_next/static/media/70bc3e132a0a741e-s.p.*.woff2` (40 KiB) and
+      `/_next/static/media/ab57efd000576a30-s.p.*.woff2` (44 KiB). Zero requests to
+      `fonts.googleapis.com` or `fonts.gstatic.com`, and zero to any third-party host.
+- [x] **No third-party anything** — no analytics, no `_vercel/insights`, no error
+      reporter. `<meta name="robots" content="noindex, nofollow">` is served on `/` and on
+      the 404 page.
+- [~] **No console errors or warnings** — zero errors, zero warnings and zero logs across
+      both walks. **One difference from the local run**, which recorded "zero console
+      messages of any type": Chrome raised one DevTools **Issue** (not a console message)
+      during the first walk — *"An element doesn't have an autocomplete attribute"*.
+      Traced: `fullName`, `email`, `residentialAddress`, `postalCode` and `city` all have
+      `autocomplete === null`; only `phone` has one, and that comes from
+      `react-phone-number-input`. This is a WCAG 2.2 AA 1.3.5 gap, it is engine-side, and
+      it is now listed in the README's known rough edges. It was missed locally because
+      the check read the console and not the Issues panel.
+- [~] **Lighthouse mobile performance ≥ 90 — now borderline rather than failing.**
+      Lighthouse 12.8.2 CLI, mobile form factor, default simulated throttling (150 ms RTT,
+      1638.4 Kbps, 4× CPU), headless Chrome, nothing else running:
+
+      | Route | Runs | Median | FCP | LCP | TBT | CLS | Transfer |
+      |---|---|---|---|---|---|---|---|
+      | `/` | 98 / 98 / 98 | **98** | 1.09 s | 2.29 s | 85 ms | 0 | 570 KiB |
+      | `/apply/account-type` | 79 / 90 / 89 | **89** | 1.08 s | 2.28 s | 380 ms | 0 | 581 KiB |
+
+      A confirming second set of three on the form route: 82 / 90 / 91, median **90**.
+      All six: 79, 82, 89, 90, 90, 91 — median 89.5. So the form route **sits on the 90
+      line**, clearing it about half the time; the spread is wider than the distance to
+      the target. The two outliers do not share a cause: the **82** is the one run with a
+      slow FCP (2.9 s against 0.9–1.1 s on the other five — the same bimodality that made
+      the local font experiment untrustworthy, reproduced on a different machine and a
+      different origin), while the **79** had a normal 1.1 s FCP and lost its points to a
+      3.9 s LCP. Per-run FCP/LCP/TBT: 1.1/3.9/350, 0.9/2.0/380, 1.1/2.3/380, 2.9/4.0/60,
+      0.9/2.3/370, 1.1/2.0/360.
+
+      Against 94 and 70 locally, that is +4 and +19. **The +19 must not be read as a
+      deployment win on its own**: the local runs shared a CPU with `next start`, Chrome
+      and vitest under a 4× CPU multiplier, so the origin and the measuring machine
+      changed together. What is defensible is that the deployed numbers are the ones a
+      visitor gets.
+
+      Deployed diagnostics on `/apply/account-type`: the one client chunk
+      `0nkj8-dmq5il9.js` is **291 KiB over the wire (brotli, `content-encoding: br`,
+      `cache-control: public,max-age=31536000,immutable`) and 1118 KiB raw**, with
+      **186 KiB unused**; main-thread work 1.2 s of which 758 ms is script evaluation and
+      131 ms parse/compile; LCP splits **32 % TTFB / 68 % render delay** (locally it was
+      91 % render delay — there was no real network latency to occupy the other third).
+      The README's cause analysis is re-anchored to these figures.
+- [x] **CDN behaves** — `x-vercel-cache: HIT` on the document, on the RSC segments and on
+      the immutable chunks; `x-nextjs-prerender: 1`; `strict-transport-security` present.
+
+Two things not re-checkable against the deployed origin, and not substituted for:
+`yarn test` / `yarn test:e2e` (they run against a local build by construction — the
+egress spec's guarantee is about the bundle, which is byte-identical), and
+`scripts/check-engine-boundary.mjs` (a source-tree check with no deployed equivalent).
+
+One unrelated wart noticed while driving the flow, not deployment-specific: on a short
+viewport (≈650 px of usable height) the country combobox's popover flips to
+`data-side="top"` and its search input renders above the viewport at `y = -52 px`, so the
+search box is clipped off-screen. The list below it is still visible and usable. It is a
+Radix collision-handling gap in the engine's `CountryField`, not a host bug, and it is
+not recorded as an acceptance failure because the acceptance list does not cover it.
+
 ---
 
 ## Task 23: README

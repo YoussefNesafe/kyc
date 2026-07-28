@@ -62,6 +62,38 @@ export type BaseField = {
    * renders nothing, same as `label`/`description`.
    */
   badge?: string;
+  /**
+   * The control's HTML `autocomplete` attribute — `"name"`, `"email"`,
+   * `"street-address"`, `"postal-code"`, `"address-level2"`, `"bday"`.
+   *
+   * This is what WCAG 2.2 SC 1.3.5 (Identify Input Purpose, AA) asks for on
+   * any field collecting information *about the person filling the form*: the
+   * token is the machine-readable statement of what the field is for, which is
+   * what lets a browser fill it and what lets assistive technology re-label it
+   * with the icon or vocabulary its user knows. A label alone does not carry
+   * that — "Postleitzahl" and "ZIP" are the same purpose and no parser can
+   * tell. Omitting it on a field that has a purpose in
+   * https://www.w3.org/TR/WCAG22/#input-purposes is a 1.3.5 failure.
+   *
+   * Deliberately typed `string`, not a union of those purposes. The attribute's
+   * value is a *grammar*, not a vocabulary — an optional `section-*` group, an
+   * optional `shipping`/`billing`, an optional `home`/`work`/`mobile`/`fax`/
+   * `pager`, then the purpose token, then an optional `webauthn`; plus the
+   * standalone `on`/`off`. The 1.3.5 list is only the purpose slot. A union of
+   * it would reject `"section-owner-1 name"`, `"shipping street-address"`,
+   * `"mobile tel"` and `"off"` — all valid HTML, and the first is what a
+   * repeating `group` of people needs to keep the browser from filling every
+   * row with the same name. Getting a token *wrong* is caught where it is
+   * catchable — a test on the config, and a browser that quietly fails to fill.
+   *
+   * Reaches the DOM only on the field types whose control is a native
+   * text-entry input the browser can write into: `text`, `email`, `password`,
+   * `textarea`, `number`, `masked`, `time`, `phone`, `otp`. `date`, `select`
+   * and `country` render a popover behind a `<button>` — no input to carry it —
+   * and HTML ignores the attribute on `file`, `checkbox`/`switch`, `radio` and
+   * `segmented`. Set on one of those it is inert, not an error.
+   */
+  autocomplete?: string;
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;

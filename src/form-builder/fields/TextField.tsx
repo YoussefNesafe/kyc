@@ -80,6 +80,7 @@ export function TextField({ field }: FieldComponentProps) {
           {config.type === "textarea" ? (
             <Textarea
               placeholder={config.placeholder}
+              autoComplete={config.autocomplete}
               {...rhf}
               onChange={(event) => rhf.onChange(sanitize(event.target.value))}
               onBlur={handleBlur}
@@ -95,6 +96,7 @@ export function TextField({ field }: FieldComponentProps) {
                 type={isPassword && showPassword ? "text" : config.type}
                 inputMode={config.type === "email" ? "email" : config.type === "number" ? "decimal" : undefined}
                 placeholder={config.placeholder}
+                autoComplete={config.autocomplete}
                 min={config.type === "number" ? config.min : undefined}
                 max={config.type === "number" ? config.max : undefined}
                 step={config.type === "number" ? config.step : undefined}

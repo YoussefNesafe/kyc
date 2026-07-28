@@ -67,6 +67,11 @@ const baseFieldSchema = z.strictObject({
   label: z.string().optional(),
   description: z.string().optional(),
   badge: z.string().optional(),
+  // Not an enum of the WCAG 1.3.5 purposes: the attribute is a grammar around
+  // one purpose token (optional section-*/shipping/billing/home/work/mobile
+  // groups, optional trailing webauthn) plus the standalone on/off, so an
+  // allowlist would reject valid HTML. See BaseField.autocomplete.
+  autocomplete: z.string().optional(),
   placeholder: z.string().optional(),
   required: z.boolean().optional(),
   disabled: z.boolean().optional(),

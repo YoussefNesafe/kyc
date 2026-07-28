@@ -25,7 +25,7 @@ touches no JSX at all — the claim is worked through in
 yarn install
 yarn dev          # http://localhost:3000
 
-yarn test         # vitest — 14 files, 167 tests
+yarn test         # vitest — 14 files, 180 tests
 yarn test:e2e     # playwright — keyboard completion + a data-egress guard
 yarn typecheck    # tsc --noEmit
 yarn lint         # eslint + scripts/check-engine-boundary.mjs
@@ -517,18 +517,36 @@ Both have upstream fixes described in the engine's PR.
   `trigger()`. The upstream fix is `useFormState({ control })` in
   `SubmitField.tsx:13`.
 
-A third gap was found on the deployed build and is **not** worked around,
-because the right place to fix it is upstream:
+A third gap was found on the deployed build and has since been **fixed
+upstream** rather than worked around here, which is why it is worth recording:
 
-- **No `autocomplete` on the text fields.** `fullName`, `email`,
-  `residentialAddress`, `postalCode` and `city` render with no `autocomplete`
-  attribute. Only the phone field has one, and that comes from
-  `react-phone-number-input` rather than from the engine — Chrome's Issues panel
-  is the thing that says so, which is why it survived a console-only check. For
-  a form asking a person for their own name and address this is a WCAG 2.2 AA
-  1.3.5 (Identify Input Purpose) gap, not merely an inconvenience. The fix is an
-  `autocomplete` passthrough on `BaseField`, forwarded by the text and email
-  fields, so it belongs in the engine's PR beside the other three.
+- **No `autocomplete` on the text fields** (fixed). `fullName`, `email`,
+  `residentialAddress`, `postalCode` and `city` used to render with no
+  `autocomplete` attribute. Only the phone field had one, and that came from
+  `react-phone-number-input` rather than from the engine — Chrome's **Issues**
+  panel was the thing that said so ("An element doesn't have an autocomplete
+  attribute"), which is why it survived a console-only check. For a form asking
+  a person for their own name and address that is a WCAG 2.2 AA 1.3.5 (Identify
+  Input Purpose) failure, not merely an inconvenience.
+
+  The engine now takes `autocomplete` on `BaseField` and forwards it to the nine
+  field types whose control is a native text-entry input, and this config sets
+  the purpose token on every field that asks about the applicant — `name`,
+  `email`, `street-address`, `postal-code`, `address-level2`, `mobile tel`, and
+  `organization`/`work email`/`work tel` on the corporate branch. The tokens are
+  pinned by name in `buildFormConfig.test.ts`, because the engine types
+  `autocomplete` as a plain string (the attribute is a grammar, not a fixed
+  vocabulary) and a near-miss like `postcode` would otherwise read as
+  conformant and fail silently. Fields that ask about someone or something else
+  — the entity's registered address, a beneficial owner's name — deliberately
+  carry none: a wrong token is worse than a missing one, because it points the
+  browser at the applicant's own details.
+
+  One known limit: `dateOfBirth` declares `bday` but the attribute does not
+  reach the DOM, because the engine's `date` field is a calendar in a popover
+  behind a `<button>` with no input to carry it. 1.3.5 is not failed by a
+  control that is not an input field, and the token is declared so it starts
+  working the day the date field grows a typed entry path.
 
 ---
 

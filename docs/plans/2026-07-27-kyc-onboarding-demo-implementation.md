@@ -1656,6 +1656,15 @@ browser context from the landing page through submit.
       `react-phone-number-input`. This is a WCAG 2.2 AA 1.3.5 gap, it is engine-side, and
       it is now listed in the README's known rough edges. It was missed locally because
       the check read the console and not the Issues panel.
+      **Followed up and closed:** the engine gained `BaseField.autocomplete`
+      (`feat/kyc-hardening`), the CLI was re-vendored, and this config now sets the
+      purpose token on every field that asks about the applicant. Re-verified in Chrome
+      against the local build on both the individual and corporate branches: the six real
+      inputs on the personal-details step carry `name`, `email`, `mobile tel`,
+      `street-address`, `postal-code`, `address-level2`, and the Issues panel no longer
+      raises the autocomplete issue on either branch. The two remaining Issues entries
+      ("A form field element should have an id or name attribute") were present on the
+      deployed build too and are unrelated.
 - [~] **Lighthouse mobile performance ≥ 90 — now borderline rather than failing.**
       Lighthouse 12.8.2 CLI, mobile form factor, default simulated throttling (150 ms RTT,
       1638.4 Kbps, 4× CPU), headless Chrome, nothing else running:

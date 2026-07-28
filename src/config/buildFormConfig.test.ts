@@ -286,6 +286,64 @@ describe("the schema the engine builds from this config", () => {
   });
 });
 
+describe("input purpose (WCAG 2.2 SC 1.3.5)", () => {
+  // The engine types `autocomplete` as a plain string — the attribute is a
+  // grammar, not a fixed vocabulary, so a union would reject "work tel" and
+  // "section-* name". That leaves the token itself uncheckable by tsc, and a
+  // near-miss ("postcode", "city") is the failure mode: it reads as conformant,
+  // costs nothing at build time, and silently fails the criterion. So the
+  // tokens are pinned here, spelled out, against
+  // https://www.w3.org/TR/WCAG22/#input-purposes.
+  const EXPECTED: Record<string, string> = {
+    // Individual — the branch 1.3.5 is really about.
+    fullName: "name",
+    dateOfBirth: "bday",
+    email: "email",
+    phone: "mobile tel",
+    residentialAddress: "street-address",
+    postalCode: "postal-code",
+    city: "address-level2",
+    // Corporate — only the fields describing the person filling the form.
+    companyName: "organization",
+    contactName: "name",
+    contactEmail: "work email",
+    contactPhone: "work tel",
+  };
+
+  it.each(Object.entries(EXPECTED))("%s declares autocomplete=%s", (name, token) => {
+    expect((field(name) as { autocomplete?: string }).autocomplete).toBe(token);
+  });
+
+  it("claims no purpose for data that is not about the applicant", () => {
+    // A wrong token is worse than none: it points a browser at the applicant's
+    // own details for a field that asks about someone or something else.
+    for (const name of ["nationality", "registeredAddress", "companyNumber", "incorporationDate"]) {
+      expect((field(name) as { autocomplete?: string }).autocomplete, name).toBeUndefined();
+    }
+    const owners = field("beneficialOwners") as { fields?: AnyFieldConfig[] };
+    for (const row of owners.fields ?? []) {
+      expect((row as { autocomplete?: string }).autocomplete, `beneficialOwners.${row.name}`).toBeUndefined();
+    }
+  });
+
+  it("leaves no field on the personal-details step silently unpurposed", () => {
+    // The regression guard. This step is where the criterion was failing, and
+    // where a field added later would fail it again without anyone noticing —
+    // so every field on it either declares a token or is named here as having
+    // no purpose token to declare.
+    const NO_TOKEN_EXISTS = new Set(["nationality", "companyNumber", "incorporationDate", "registeredAddress"]);
+    const personal = config.steps![stepIndexForSlug("personal-details")!].fieldNames ?? [];
+    expect(personal.length).toBeGreaterThan(0);
+
+    for (const name of personal) {
+      const f = field(name) as { type: string; autocomplete?: string };
+      if (f.type === "static" || f.type === "group") continue;
+      const accounted = f.autocomplete !== undefined || NO_TOKEN_EXISTS.has(name);
+      expect(accounted, `${name} has no autocomplete and is not listed as having no token`).toBe(true);
+    }
+  });
+});
+
 describe("steps", () => {
   it("has five steps, ending in a review step", () => {
     expect(config.steps).toHaveLength(STEP_SLUGS.length);

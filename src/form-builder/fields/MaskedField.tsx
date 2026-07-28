@@ -36,6 +36,7 @@ export function MaskedField({ field }: FieldComponentProps) {
             type="text"
             inputMode={numericOnly ? "numeric" : undefined}
             placeholder={config.placeholder ?? config.mask}
+            autoComplete={config.autocomplete}
             maxLength={config.mask.length}
             {...rhf}
             id={id}

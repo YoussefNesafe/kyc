@@ -82,6 +82,12 @@ export const us: Jurisdiction = {
         name: "us_state",
         label: "State of residence",
         required: true,
+        // The purpose here is `address-level1`, but this is a searchable
+        // select — a combobox behind a <button>, with no input for a browser
+        // to fill — so the token would not reach the DOM and is left off
+        // rather than declared where it cannot act. Same for `ae_emirate`.
+        // `dateOfBirth` is the one place this config declares an inert token,
+        // because date of birth is the first field a 1.3.5 audit looks for.
         searchable: true,
         optionsFrom: { field: "country", map: STATES_BY_COUNTRY },
         description: "Derived from the country above — the list is empty for anywhere else.",

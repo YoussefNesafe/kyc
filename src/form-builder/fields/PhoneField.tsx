@@ -180,6 +180,10 @@ export function PhoneField({ field }: FieldComponentProps) {
             onBlur={rhf.onBlur}
             disabled={disabled}
             placeholder={config.placeholder}
+            // Left off numberInputProps deliberately: PhoneInput takes
+            // autoComplete as a top-level prop with a `defaultProps` of "tel",
+            // so an unset config falls back to that instead of stripping it.
+            autoComplete={config.autocomplete}
             defaultCountry={config.defaultCountry as Country | undefined}
             countryOptionsOrder={config.preferredCountries as ComponentProps<typeof PhoneInput>["countryOptionsOrder"]}
             international

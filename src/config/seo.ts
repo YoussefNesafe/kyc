@@ -184,6 +184,22 @@ export function metadataForStep(slug: string): Metadata {
       siteName: SITE_NAME,
       type: "website",
     },
+    /*
+     * Set explicitly, and not left to the root layout.
+     *
+     * Next does not derive the Twitter block from the Open Graph one — a
+     * segment that sets `openGraph` and omits `twitter` inherits the LAYOUT's
+     * twitter tags, so every step page advertised itself with the landing
+     * page's title and description. Nothing unsafe about it, since both name
+     * the author, but a link to step three that previews as the home page is
+     * simply wrong, and the failure is invisible unless you read the tags of a
+     * deployed step.
+     */
+    twitter: {
+      card: "summary_large_image",
+      title: `${title} — ${SITE_NAME}`,
+      description,
+    },
   };
 }
 

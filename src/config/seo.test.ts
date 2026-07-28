@@ -104,6 +104,21 @@ describe("step metadata", () => {
     }
   });
 
+  it("describes itself, not the landing page, in every card", () => {
+    // Next does not derive twitter tags from openGraph. A step that omitted
+    // them inherited the layout's, so a shared link to step three previewed as
+    // the home page — and nothing in a browser shows that.
+    for (const slug of STEP_SLUGS) {
+      const metadata = metadataForStep(slug);
+      const description = descriptionForStep(slug);
+
+      expect(metadata.openGraph?.title).toContain(titleForStep(slug));
+      expect(metadata.openGraph?.description).toBe(description);
+      expect(metadata.twitter?.title).toContain(titleForStep(slug));
+      expect(metadata.twitter?.description).toBe(description);
+    }
+  });
+
   it("returns an empty block for a slug that is not a step, without throwing", () => {
     // generateMetadata runs before the page can call notFound(), so this path
     // has to be survivable or a 404 becomes a 500.

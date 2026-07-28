@@ -25,7 +25,7 @@ touches no JSX at all — the claim is worked through in
 yarn install
 yarn dev          # http://localhost:3000
 
-yarn test         # vitest — 16 files, 199 tests
+yarn test         # vitest — 16 files, 200 tests
 yarn test:e2e     # playwright — keyboard completion, a data-egress guard, crawler output
 yarn typecheck    # tsc --noEmit
 yarn lint         # eslint + scripts/check-engine-boundary.mjs

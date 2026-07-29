@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { StartApplicationLink } from "@/components/StartApplicationLink";
 import { JURISDICTIONS } from "@/config/jurisdictions";
-import { APPLICATION_ENTRY_PATH, APPLICATION_ROUTE_IS_LIVE } from "@/config/routes";
+import { APPLICATION_ROUTE_IS_LIVE } from "@/config/routes";
 import { absoluteUrl, landingStructuredData, SITE_DESCRIPTION } from "@/config/seo";
 import { STEP_SLUGS, STEP_TITLES } from "@/config/steps";
 
@@ -126,12 +126,15 @@ export default function Home() {
 
         <div className="mt-9">
           {APPLICATION_ROUTE_IS_LIVE ? (
-            <Link
-              href={APPLICATION_ENTRY_PATH}
-              className="inline-flex min-h-11 items-center rounded-md bg-primary px-5 text-ui font-medium text-primary-foreground transition-colors hover:bg-[var(--primary-hover)]"
-            >
+            /*
+             * Not a plain `<Link>`: in the hero it is in the viewport at load,
+             * and Next would prefetch the entire form engine before the visitor
+             * has decided to open it — 291 KiB, measured as 100% unused on this
+             * page. See the component for what replaces it.
+             */
+            <StartApplicationLink className="inline-flex min-h-11 items-center rounded-md bg-primary px-5 text-ui font-medium text-primary-foreground transition-colors hover:bg-[var(--primary-hover)]">
               Start the application
-            </Link>
+            </StartApplicationLink>
           ) : (
             /*
              * No dead button. The shell that serves `/apply/…` is the next

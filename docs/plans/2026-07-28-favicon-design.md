@@ -202,10 +202,18 @@ been chosen for optical balance without ever being rendered at the size the
 whole concept was justified on. It moved to `x 16→20`, which expresses the same
 one-pixel offset on the 16 grid instead of the 32 grid.
 
-There is a second payoff nobody planned for. Browsers load the **32px** frame
-out of the `.ico` and downscale it to 16 themselves. That survives crisp only
-because every coordinate is even — the same fix, paying out in a path the design
-never considered.
+There is a second payoff nobody planned for. Chrome loaded the **32px** frame
+out of the `.ico` and downscaled it to 16 itself, rather than taking the 16px
+frame that is sitting right there. That path survives crisp only because every
+coordinate is even — the same fix, paying out somewhere the design never
+considered.
+
+Claimed for Chrome only, because that is the only browser this was watched in,
+and the `sizes="32x32"` recorded above is part of why: Next derives that hint
+from the largest frame in the file, so the `<link>` itself points a browser at
+the 32px one. A bare `/favicon.ico` request carries no hint and sees both
+frames. Which frame any given browser picks under which conditions was not
+established here; that the even geometry holds up when one is downscaled was.
 
 ### Still not verified
 

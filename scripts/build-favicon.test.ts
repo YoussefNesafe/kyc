@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs";
+import { inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { GEOMETRY, SIZES, buildIco, encodeIco, encodePng, renderRgba } from "./build-favicon.mjs";
 
@@ -133,6 +134,20 @@ describe("encodePng", () => {
     const png = encodePng(16, renderRgba(16));
     expect(png.subarray(png.length - 8, png.length - 4).toString("ascii")).toBe("IEND");
   });
+
+  it("computes real chunk CRCs", () => {
+    // IEND carries no payload, so its twelve bytes — a zero length, the type,
+    // and the checksum over the type alone — are the same twelve bytes in every
+    // valid PNG ever written. That makes this constant an oracle the suite does
+    // not derive from the code under test, which matters because every other
+    // encoder assertion here reads lengths, offsets and header fields, and all
+    // of those stay correct while the checksums are garbage. Tidy the `-1` seed
+    // in crc32 to a `0` — it reads like a stray initialiser — and every chunk
+    // in both PNGs is corrupt, the .ico is undecodable, and nothing else in
+    // this file notices.
+    const png = encodePng(16, renderRgba(16));
+    expect(png.subarray(png.length - 12).toString("hex")).toBe("0000000049454e44ae426082");
+  });
 });
 
 describe("encodeIco", () => {
@@ -169,6 +184,80 @@ describe("encodeIco", () => {
   });
 });
 
+/**
+ * Every IDAT payload in a PNG, concatenated, found by walking the chunk list.
+ *
+ * The offsets are computable — IHDR's payload is fixed at 13 bytes, so the
+ * first IDAT's data begins at 8 + 25 + 8 — and doing that arithmetic inline
+ * would be shorter. It would also quietly assume the two things this test is
+ * here to check somebody else's work on: that there is exactly one IDAT, and
+ * that no chunk was ever inserted ahead of it. The format permits an encoder to
+ * split the deflate stream across any number of IDATs and to emit ancillary
+ * chunks between them, so a decoder walks; this walks. Four lines, and it
+ * cannot silently start reading the wrong bytes.
+ */
+function idatPayload(png: Buffer) {
+  const parts: Buffer[] = [];
+  // Past the 8-byte signature. Each chunk is length(4) + type(4) + data + crc(4).
+  for (let offset = 8; offset < png.length; ) {
+    const length = png.readUInt32BE(offset);
+    const type = png.subarray(offset + 4, offset + 8).toString("ascii");
+    if (type === "IDAT") parts.push(png.subarray(offset + 8, offset + 8 + length));
+    offset += 12 + length;
+  }
+  return Buffer.concat(parts);
+}
+
+describe("src/app/favicon.ico", () => {
+  /**
+   * The committed binary, checked against the generator that claims to produce
+   * it. Everything else in this file tests buildIco's return value, which is
+   * not the artefact the browser loads — and nothing runs `yarn favicon` but a
+   * developer remembering to. There is no CI here and no prebuild hook.
+   *
+   * That leaves exactly one ordering uncovered, and it is the natural one:
+   * change GEOMETRY, update the pin at the top of this file, update icon.svg,
+   * and forget the generator. The drift guard passes, the geometry pin passes,
+   * every pixel probe passes — they all read the same constant — and the .ico
+   * on disk still draws the old mark. It is also the claim the design doc rests
+   * the generator's existence on, that the icon is "derived and checkable
+   * instead of asserted". Derived it was; this is the checkable half.
+   *
+   * The comparison is by decoded pixel, not by byte. deflateSync is
+   * deterministic within one zlib build, but its output has changed across the
+   * zlib versions Node bundles, so asserting the compressed bytes would make a
+   * Node upgrade fail as a diff in a file nobody touched. The pixels are what
+   * has to match; how they were spelled on the way to disk is not.
+   */
+  it("holds the bytes the generator would write today", () => {
+    const disk = readFileSync(new URL("../src/app/favicon.ico", import.meta.url));
+    expect(disk.readUInt16LE(4)).toBe(SIZES.length);
+
+    SIZES.forEach((size, index) => {
+      const entry = 6 + index * 16;
+      expect(disk.readUInt8(entry)).toBe(size);
+      const offset = disk.readUInt32LE(entry + 12);
+      const png = disk.subarray(offset, offset + disk.readUInt32LE(entry + 8));
+
+      // The inflated stream is one filter byte plus one RGBA scanline per row.
+      const stride = size * 4;
+      const raw = inflateSync(idatPayload(png));
+      expect(raw).toHaveLength((stride + 1) * size);
+
+      const expected = renderRgba(size);
+      for (let y = 0; y < size; y++) {
+        const row = y * (stride + 1);
+        // Filter type None on every scanline, which is what encodePng writes —
+        // and what makes the slice below directly comparable to the render.
+        expect(raw[row]).toBe(0);
+        expect(raw.subarray(row + 1, row + 1 + stride)).toEqual(
+          expected.subarray(y * stride, (y + 1) * stride),
+        );
+      }
+    });
+  });
+});
+
 describe("icon.svg", () => {
   const svg = () => readFileSync(new URL("../src/app/icon.svg", import.meta.url), "utf8");
 
@@ -184,11 +273,22 @@ describe("icon.svg", () => {
   it("is built from the same geometry as the .ico", () => {
     const source = svg();
     expect(source).toContain(`viewBox="0 0 ${GEOMETRY.viewBox} ${GEOMETRY.viewBox}"`);
-    expect(source).toContain(`rx="${GEOMETRY.radius}"`);
-    expect(source).toContain(`fill="${GEOMETRY.tile}"`);
+    // The tile as one contiguous match rather than a loose `rx` and a loose
+    // fill. Full bleed at viewBox×viewBox is part of the design — anything
+    // smaller leaves a transparent margin the rasteriser does not draw — and
+    // free-floating substrings assert only that the numbers appear SOMEWHERE
+    // in the file, which a 30×30 tile satisfies as happily as a 32×32 one.
+    expect(source).toContain(
+      `x="0" y="0" width="${GEOMETRY.viewBox}" height="${GEOMETRY.viewBox}" rx="${GEOMETRY.radius}" fill="${GEOMETRY.tile}"`,
+    );
     for (const rect of GEOMETRY.rects) {
+      // The fill is part of the geometry here, not decoration. Matched without
+      // it, this loop is blind to the worst drift the file allows: recolour the
+      // figure to the tile colour and the SVG renders as a blank teal square
+      // while the .ico still carries the mark — same coordinates, same widths,
+      // test green. Browsers that prefer the SVG would show nothing at all.
       expect(source).toContain(
-        `x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}"`,
+        `x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}" fill="${GEOMETRY.figure}"`,
       );
     }
   });

@@ -32,7 +32,7 @@ import { stepPath } from "./routes";
  * engineered around, in three places, all of them in this file:
  *
  *   1. `TITLE_TEMPLATE` names the AUTHOR, never the fictional broker. A search
- *      result reads "Step 3: Tax residency — KYC demo by Youssef Nessafe". The
+ *      result reads "Step 3: Tax residency — KYC demo by Youssef Nesafe". The
  *      brand survives inside the product, where the banner is; it does not
  *      survive into the one line a stranger sees before they click.
  *
@@ -59,7 +59,13 @@ import { stepPath } from "./routes";
  */
 export const SITE_URL = "https://kyc-six.vercel.app";
 
-export const AUTHOR_NAME = "Youssef Nessafe";
+/*
+ * One `s` in the surname. The email is `ynessafe@` and the GitHub handle is
+ * `YoussefNesafe`, which disagree with each other — the name is the authority,
+ * and this string is what ends up in every `<title>`, the JSON-LD `Person` and
+ * the Open Graph card.
+ */
+export const AUTHOR_NAME = "Youssef Nesafe";
 
 /** What the site is called in a browser tab and an OG card, as opposed to what the fictional broker is called. */
 export const SITE_NAME = `KYC demo by ${AUTHOR_NAME}`;

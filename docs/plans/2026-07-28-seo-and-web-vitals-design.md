@@ -25,7 +25,7 @@ The concern was not dismissed, it was engineered around. Indexing is paired with
 three measures that make the search result unambiguous about what this is:
 
 1. **Every title names the author, not the fictional broker.** A search result
-   reads `Step 3: Tax residency — KYC demo by Youssef Nessafe`, never `Tax
+   reads `Step 3: Tax residency — KYC demo by Youssef Nesafe`, never `Tax
    residency — Meridian Markets`.
 2. **Every description leads with the demo disclaimer.** The snippet under the
    title says it is a portfolio demonstration and that nothing entered is sent
@@ -80,13 +80,13 @@ the repo works to prevent.
 
 ### What the metadata says
 
-Root title template `%s — KYC demo by Youssef Nessafe`; root default
-`Jurisdiction-aware KYC onboarding — Youssef Nessafe`.
+Root title template `%s — KYC demo by Youssef Nesafe`; root default
+`Jurisdiction-aware KYC onboarding — Youssef Nesafe`.
 
 | Route | Title |
 |---|---|
-| `/` | Jurisdiction-aware KYC onboarding — Youssef Nessafe |
-| `/apply/account-type` | Step 1: Account type — KYC demo by Youssef Nessafe |
+| `/` | Jurisdiction-aware KYC onboarding — Youssef Nesafe |
+| `/apply/account-type` | Step 1: Account type — KYC demo by Youssef Nesafe |
 | `/apply/personal-details` | Step 2: Your details — … |
 | `/apply/tax-residency` | Step 3: Tax residency — … |
 | `/apply/documents` | Step 4: Documents — … |

@@ -35,8 +35,11 @@ real product" to anyone who looks closer.
 
 Rejected in favour of a clean mark. The banner sits above every route as the
 first child of `<body>`, the page states twice in prose that Meridian Markets
-does not exist, and the site is withheld from crawlers on both `index` and
-`follow`. The icon does not need to carry a fourth copy of a message that is
+does not exist, and the crawler-facing surface names the author rather than the
+brokerage. (Amended 2026-07-28: this sentence originally read "the site is
+withheld from crawlers on both `index` and `follow`", which stopped being true
+later the same day. The conclusion is unchanged — the disambiguation moved from
+hiding the site to labelling it.) The icon does not need to carry a fourth copy of a message that is
 already unavoidable on screen, and the portfolio piece is better for a mark that
 is not compromised.
 
@@ -75,8 +78,10 @@ on this accent, so the knockout inherits a ratio `theme.test.ts` guards.
 
 | Element | Geometry | At 16px |
 |---|---|---|
-| Vertical | `x 15→19`, `y 4→28` | 2px wide, 12px tall |
-| Crossbar | `x 6→19`, `y 18→22` | 2px tall, 6.5px long |
+| Vertical | `x 16→20`, `y 4→28` | 2px wide, 12px tall |
+| Crossbar | `x 6→20`, `y 18→22` | 2px tall, 7px long |
+
+Every `x` is even, and decision 3 below is why.
 
 Three decisions inside those numbers:
 
@@ -85,9 +90,25 @@ Three decisions inside those numbers:
    crossbar is a close button or a medical cross. A left-only tick is a datum.
 2. **The crossbar sits at ~62% of the height, not 50%.** Below optical centre,
    so it reads as a measured position rather than a midpoint.
-3. **The vertical is at `x 15→19`, one pixel right of true centre.** The
-   left-only crossbar makes the figure left-heavy; this pays it back. Optical
-   centring, not geometric.
+3. **The vertical is at `x 16→20`, two pixels right of true centre on the 32
+   grid — which is exactly one pixel at 16px.** The left-only crossbar makes the
+   figure left-heavy; this pays it back. Optical centring, not geometric.
+
+   This coordinate was corrected after it was drawn. The first attempt was
+   `x 15→19`, picked as "one pixel right of centre" on the 32 grid and never
+   rendered at 16 before it was written down. It halves to `7.5→9.5`, which
+   straddles a pixel boundary; a real 16px render measured columns 7, 8 and 9 as
+   `135,174,173` / `255,255,255` / `135,174,173` — the stroke smeared across
+   three columns at partial alpha instead of occupying two cleanly. That
+   falsified the argument this concept was selected on two sections above, that
+   nothing in the mark goes soft at 16px, and it did so in the mark's single
+   most prominent element.
+
+   `16→20` states the same optical intent one grid down, where it actually
+   lands: both edges fall on whole pixels at 16 and at 32. The general rule is
+   the even coordinate, not this specific number — an odd `x` on a 32 grid is a
+   half-pixel at 16 by construction. `build-favicon.test.ts` asserts the 16px
+   columns directly so the correction cannot be tidied back out.
 
 `rx="3"` is proportional, not literal. `--radius` is 3px against card-sized
 elements, where it reads as a hairline softening; 3px on a 32px tile lands at

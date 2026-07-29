@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { SIZES, renderRgba } from "./build-favicon.mjs";
+import { SIZES, buildIco, encodeIco, encodePng, renderRgba } from "./build-favicon.mjs";
 
 /**
  * The mark is two axis-aligned rectangles knocked out of a teal tile. These
@@ -85,5 +85,58 @@ describe("renderRgba", () => {
       // pass with the figure deleted entirely.
       expect(pixel(renderRgba(size), size, size / 2, size / 2)).toEqual(WHITE);
     }
+  });
+});
+
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+describe("encodePng", () => {
+  it("writes a PNG signature and an IHDR declaring the size", () => {
+    const png = encodePng(32, renderRgba(32));
+    expect(png.subarray(0, 8)).toEqual(PNG_SIGNATURE);
+    // IHDR payload starts at 16: length(4) + "IHDR"(4) after the 8-byte signature.
+    expect(png.readUInt32BE(16)).toBe(32);
+    expect(png.readUInt32BE(20)).toBe(32);
+    expect(png.readUInt8(24)).toBe(8); // bit depth
+    expect(png.readUInt8(25)).toBe(6); // colour type: RGBA
+  });
+
+  it("ends with IEND", () => {
+    const png = encodePng(16, renderRgba(16));
+    expect(png.subarray(png.length - 8, png.length - 4).toString("ascii")).toBe("IEND");
+  });
+});
+
+describe("encodeIco", () => {
+  it("declares one directory entry per image", () => {
+    const ico = buildIco();
+    expect(ico.readUInt16LE(0)).toBe(0); // reserved
+    expect(ico.readUInt16LE(2)).toBe(1); // type 1 = icon
+    expect(ico.readUInt16LE(4)).toBe(SIZES.length);
+  });
+
+  it("points every entry at a real PNG", () => {
+    const ico = buildIco();
+    SIZES.forEach((size, index) => {
+      const entry = 6 + index * 16;
+      expect(ico.readUInt8(entry)).toBe(size); // width
+      expect(ico.readUInt8(entry + 1)).toBe(size); // height
+      expect(ico.readUInt16LE(entry + 6)).toBe(32); // bits per pixel
+
+      const length = ico.readUInt32LE(entry + 8);
+      const offset = ico.readUInt32LE(entry + 12);
+      expect(ico.subarray(offset, offset + 8)).toEqual(PNG_SIGNATURE);
+      expect(offset + length).toBeLessThanOrEqual(ico.length);
+    });
+  });
+
+  it("lays the payloads out back to back after the directory", () => {
+    const ico = encodeIco([
+      { size: 16, png: Buffer.from("aaaa") },
+      { size: 32, png: Buffer.from("bbbbbb") },
+    ]);
+    expect(ico.readUInt32LE(6 + 12)).toBe(6 + 32);
+    expect(ico.readUInt32LE(6 + 16 + 12)).toBe(6 + 32 + 4);
+    expect(ico).toHaveLength(6 + 32 + 4 + 6);
   });
 });

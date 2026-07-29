@@ -264,13 +264,34 @@ export function ApplicationShell() {
    * reading step one. By the time Next is asked to render one, `import()`
    * resolves from cache and there is nothing to wait for.
    *
-   * `requestIdleCallback` so none of this competes with making the FIRST step
-   * interactive — that is the whole point of having split them. Safari still has
-   * no `requestIdleCallback`, hence the `setTimeout` fallback; the delay is
-   * arbitrary and only needs to be past the first paint.
+   * ## Why this waits for an interaction rather than for idle
+   *
+   * The first version used `requestIdleCallback`, and measurement rejected it.
+   * Idle arrives early on a page this small — early enough to land inside the
+   * window Lighthouse measures blocking time over — so step one finished
+   * splitting these chunks out and then immediately parsed all four of them
+   * while it was becoming interactive. Total transfer went UP against the
+   * unsplit build and TBT with it. The split was real; the warm gave it back.
+   *
+   * The first interaction is a better signal than idle for the same reason it
+   * is a better signal than a timer: it means a human is present and working,
+   * so the page is past the point where main-thread time is contended, and it
+   * still leaves however long they spend answering step one to fetch four small
+   * chunks over an idle connection. Nobody reaches a `date` or a `country`
+   * field without first touching this step.
+   *
+   * The timer is only for the visitor who lands, reads, and touches nothing —
+   * long enough to be clear of the measurement window, short enough that a slow
+   * scroller does not out-run it.
    */
   useEffect(() => {
+    let done = false;
+
     const warm = () => {
+      if (done) return;
+      done = true;
+      stopListening();
+
       for (const load of DEFERRED_FIELD_LOADERS) {
         // A failed warm is not an error: the component is still registered and
         // will load on demand when the step that needs it renders. Swallowing
@@ -280,13 +301,22 @@ export function ApplicationShell() {
       }
     };
 
-    if (typeof window.requestIdleCallback === "function") {
-      const handle = window.requestIdleCallback(warm);
-      return () => window.cancelIdleCallback(handle);
+    // `focusin` as well as the two device events, so a keyboard visitor tabbing
+    // into the first control counts as working — `keydown` alone would miss the
+    // Tab that arrived before focus was ever inside the form.
+    const EVENTS = ["pointerdown", "keydown", "focusin"] as const;
+
+    function stopListening() {
+      for (const event of EVENTS) window.removeEventListener(event, warm);
+      window.clearTimeout(timer);
     }
 
-    const handle = window.setTimeout(warm, 1_500);
-    return () => window.clearTimeout(handle);
+    for (const event of EVENTS) {
+      window.addEventListener(event, warm, { once: true, passive: true });
+    }
+    const timer = window.setTimeout(warm, 8_000);
+
+    return stopListening;
   }, []);
 
   /**

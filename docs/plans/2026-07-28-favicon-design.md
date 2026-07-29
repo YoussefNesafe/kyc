@@ -171,8 +171,9 @@ to guide them.
 
 Verified 2026-07-29 against a production build served by `yarn start`, in Chrome.
 
-`yarn lint`, `yarn typecheck` and `yarn build` all clean; `yarn test` at 209
-passing. `src/app/favicon.ico` went from the 25,931-byte scaffold default to
+`yarn lint`, `yarn typecheck` and `yarn build` all clean; `yarn test` at 211
+passing (209 when this was first recorded; a review afterwards added two tests,
+covered below). `src/app/favicon.ico` went from the 25,931-byte scaffold default to
 307 bytes — the mark is flat colour, so it deflates hard.
 
 Both tags reach the head, though not in the shape the plan predicted:

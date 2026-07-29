@@ -20,10 +20,16 @@
  * The meridian datum, on a 32×32 grid. See
  * docs/plans/2026-07-28-favicon-design.md for why each number is what it is.
  *
- * The vertical sits at x 15→19, one pixel right of true centre: the crossbar
- * runs left only, and this pays back the weight. Optical centring, not
- * geometric. The crossbar stops AT the vertical rather than crossing it — a
- * symmetric bar would read as a close button.
+ * The vertical sits at x 16→20 — two pixels right of true centre on this grid,
+ * which is exactly ONE pixel at 16px. That is the point: the crossbar runs left
+ * only, and the shift pays back the weight. Optical centring, not geometric.
+ * The crossbar stops AT the vertical rather than crossing it — a symmetric bar
+ * would read as a close button.
+ *
+ * Every x here is even on purpose. 16px is the canvas this mark is really for,
+ * and an odd coordinate halves onto a pixel boundary and renders soft: 15→19
+ * was the first attempt and it blurred the vertical across three columns at
+ * 16px. Do not "centre" these back to 15 or 14 — that reintroduces the blur.
  */
 export const GEOMETRY = {
   viewBox: 32,
@@ -31,8 +37,8 @@ export const GEOMETRY = {
   tile: "#0F5C5A", // --primary
   figure: "#FFFFFF", // --primary-foreground, 7.8:1 on the tile
   rects: [
-    { x: 15, y: 4, width: 4, height: 24 }, // vertical
-    { x: 6, y: 18, width: 13, height: 4 }, // crossbar
+    { x: 16, y: 4, width: 4, height: 24 }, // vertical
+    { x: 6, y: 18, width: 14, height: 4 }, // crossbar
   ],
 };
 

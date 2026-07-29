@@ -1,6 +1,7 @@
 // @vitest-environment node
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { SIZES, buildIco, encodeIco, encodePng, renderRgba } from "./build-favicon.mjs";
+import { GEOMETRY, SIZES, buildIco, encodeIco, encodePng, renderRgba } from "./build-favicon.mjs";
 
 /**
  * The mark is two axis-aligned rectangles knocked out of a teal tile. These
@@ -20,6 +21,33 @@ function pixel(rgba: Buffer, size: number, x: number, y: number) {
 
 const TEAL = [0x0f, 0x5c, 0x5a, 0xff];
 const WHITE = [0xff, 0xff, 0xff, 0xff];
+
+describe("GEOMETRY", () => {
+  /**
+   * A change-detector test, deliberately. Every other test here — and the SVG
+   * drift guard below — reads GEOMETRY and asserts that something agrees with
+   * it, so all of them stay green while the mark itself changes: swap `radius`
+   * to 8 and the .ico, the .svg and the whole suite move together in silence.
+   *
+   * These numbers are a signed-off design decision, not an implementation
+   * detail (docs/plans/2026-07-28-favicon-design.md argues each one). The test
+   * exists to make changing them DELIBERATE, not to prevent it: if you meant
+   * to redraw the mark, update this literal in the same commit and the diff
+   * will show a reviewer exactly what the brand mark now is.
+   */
+  it("holds the signed-off design values", () => {
+    expect(GEOMETRY).toEqual({
+      viewBox: 32,
+      radius: 3,
+      tile: "#0F5C5A",
+      figure: "#FFFFFF",
+      rects: [
+        { x: 16, y: 4, width: 4, height: 24 }, // vertical
+        { x: 6, y: 18, width: 14, height: 4 }, // crossbar, left of the vertical only
+      ],
+    });
+  });
+});
 
 describe("renderRgba", () => {
   it("knocks the vertical stroke out in white", () => {
@@ -138,5 +166,45 @@ describe("encodeIco", () => {
     expect(ico.readUInt32LE(6 + 12)).toBe(6 + 32);
     expect(ico.readUInt32LE(6 + 16 + 12)).toBe(6 + 32 + 4);
     expect(ico).toHaveLength(6 + 32 + 4 + 6);
+  });
+});
+
+describe("icon.svg", () => {
+  const svg = () => readFileSync(new URL("../src/app/icon.svg", import.meta.url), "utf8");
+
+  /**
+   * The vector and the raster are two encodings of one mark. Nothing but this
+   * test stops someone nudging the SVG and shipping a favicon.ico that no
+   * longer matches it — the drift would only ever show up as a tab icon that
+   * looks subtly wrong next to the bookmark bar.
+   *
+   * Matching on exact attribute strings makes this brittle to reordering, on
+   * purpose: reformatting the SVG should make you re-read this test.
+   */
+  it("is built from the same geometry as the .ico", () => {
+    const source = svg();
+    expect(source).toContain(`viewBox="0 0 ${GEOMETRY.viewBox} ${GEOMETRY.viewBox}"`);
+    expect(source).toContain(`rx="${GEOMETRY.radius}"`);
+    expect(source).toContain(`fill="${GEOMETRY.tile}"`);
+    for (const rect of GEOMETRY.rects) {
+      expect(source).toContain(
+        `x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}"`,
+      );
+    }
+  });
+
+  it("makes no external reference", () => {
+    // The page promises it issues no third-party request. An icon is a place
+    // that promise could quietly break — a <use xlink:href> or a webfont pulled
+    // in by @import inside <style> both look innocuous in a diff.
+    //
+    // xmlns declarations are stripped before the scan rather than exempted by
+    // the pattern. The SVG namespace is spelled as an http URL and is REQUIRED
+    // on a standalone .svg — a file served as image/svg+xml is parsed as XML,
+    // and without the declaration it is not SVG and does not render. It is an
+    // identifier, never fetched. Removing just those attributes keeps every
+    // other http(s): in the file a failure, which is the whole point.
+    const source = svg().replace(/\sxmlns(:\w+)?="[^"]*"/g, "");
+    expect(source).not.toMatch(/https?:|xlink:href|<image|@import/);
   });
 });

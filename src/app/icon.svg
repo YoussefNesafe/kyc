@@ -1,0 +1,23 @@
+<!--
+  The Meridian mark, as vector. Next.js serves this at /icon.svg by file
+  convention and browsers that support SVG favicons prefer it over favicon.ico,
+  which stays for the ones that do not.
+
+  Authored by hand, but NOT independent: every number here is a copy of
+  GEOMETRY in scripts/build-favicon.mjs, which is what the .ico is rasterised
+  from. build-favicon.test.ts asserts these exact attribute strings against
+  that constant, so the two encodings of the mark cannot drift apart quietly.
+  If you change a coordinate here, change GEOMETRY and re-run `yarn favicon`.
+
+  The crossbar runs LEFT of the vertical only and stops at it — a bar crossing
+  through would read as a close button. The vertical sits two units right of
+  centre for the same reason, which is one whole pixel at 16px.
+
+  No <style>, no external reference, no prefers-color-scheme variant: the tile
+  is filled, so the mark carries its own contrast on any browser chrome.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect x="0" y="0" width="32" height="32" rx="3" fill="#0F5C5A" />
+  <rect x="16" y="4" width="4" height="24" fill="#FFFFFF" />
+  <rect x="6" y="18" width="14" height="4" fill="#FFFFFF" />
+</svg>

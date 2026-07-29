@@ -166,3 +166,50 @@ to guide them.
   sign or a close button. This is the one risk the geometry is defending
   against, so it is checked by eye rather than assumed.
 - `yarn lint`, `yarn typecheck` and `yarn test` stay green.
+
+## Outcome
+
+Verified 2026-07-29 against a production build served by `yarn start`, in Chrome.
+
+`yarn lint`, `yarn typecheck` and `yarn build` all clean; `yarn test` at 209
+passing. `src/app/favicon.ico` went from the 25,931-byte scaffold default to
+307 bytes — the mark is flat colour, so it deflates hard.
+
+Both tags reach the head, though not in the shape the plan predicted:
+
+```html
+<link rel="icon" href="/favicon.ico?…" sizes="32x32" type="image/x-icon"/>
+<link rel="icon" href="/icon.svg?…" sizes="any" type="image/svg+xml"/>
+```
+
+The plan expected `sizes="any"` on the `.ico` from reading `app-icons.md`. Next
+in fact opens the file and derives `32x32` from the largest frame it finds. Not
+a problem, but the documented behaviour and the observed behaviour differ, and
+the observed one is what ships.
+
+**The mark reads correctly at 16px.** Rendered from both served assets and
+compared pixel by pixel, the two encodings are identical: the vertical occupies
+columns 8–9, the crossbar columns 3–9, and no pixel in the figure is a partial
+blend. It reads as a datum. It does not read as a plus sign or a close button,
+which was the one risk the geometry was chosen to defend against.
+
+### The geometry was wrong first, and measuring is what caught it
+
+The vertical originally sat at `x 15→19`. That halves to `7.5→9.5`, so at 16px
+it straddled the pixel grid and rendered as one solid column flanked by two
+half-strength blends — `135,174,173` either side of white. The coordinate had
+been chosen for optical balance without ever being rendered at the size the
+whole concept was justified on. It moved to `x 16→20`, which expresses the same
+one-pixel offset on the 16 grid instead of the 32 grid.
+
+There is a second payoff nobody planned for. Browsers load the **32px** frame
+out of the `.ico` and downscale it to 16 themselves. That survives crisp only
+because every coordinate is even — the same fix, paying out in a path the design
+never considered.
+
+### Still not verified
+
+Safari's SVG-favicon support. The design declined to guess at it and the guess
+was never made; the `.ico` is what makes the question moot, and it is confirmed
+decoding correctly under Windows WIC as two `Bgra32` frames. Anyone testing on
+Safari should record what they see here.

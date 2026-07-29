@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "favicon": "node scripts/build-favicon.mjs",
     "start": "next start",
     "lint": "eslint && node scripts/check-engine-boundary.mjs",
     "typecheck": "tsc --noEmit",

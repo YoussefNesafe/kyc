@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import fs from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import zlib from "node:zlib";
 
 /**
@@ -211,4 +213,22 @@ export function encodeIco(images) {
 
 export function buildIco() {
   return encodeIco(SIZES.map((size) => ({ size, png: encodePng(size, renderRgba(size)) })));
+}
+
+const OUTPUT = fileURLToPath(new URL("../src/app/favicon.ico", import.meta.url));
+
+/*
+ * Importable by the tests, executable by `yarn favicon`. Without this guard the
+ * test run would rewrite the committed icon as a side effect of importing it —
+ * every `yarn test` would leave a dirty working tree, and a generator bug would
+ * land in the binary before anyone had a chance to review it.
+ *
+ * The comparison is url-to-url rather than path-to-path on purpose: argv[1] is
+ * a native path (drive letter and backslashes on Windows), import.meta.url is
+ * always a file: URL, and pathToFileURL is the only conversion that agrees with
+ * how Node itself spelled this module's URL.
+ */
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  fs.writeFileSync(OUTPUT, buildIco());
+  console.log(`Wrote ${OUTPUT} (${SIZES.join("px, ")}px)`);
 }

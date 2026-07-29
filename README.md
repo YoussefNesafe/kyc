@@ -411,69 +411,77 @@ fast feedback. If the two ever disagree, the script wins.
 
 ---
 
-## Performance: the number that sits on 90
+## Performance: what it costs, and what was done about it
 
-**Lighthouse mobile against the deployed origin**, `https://kyc-six.vercel.app`,
-three runs each:
+**Five runs per route against the deployed origin**, via `yarn measure` — medians
+with the spread, because a single run from this distribution is true and useless:
 
-| Route | Runs | Median | FCP | LCP | TBT | CLS | Transfer |
-|---|---|---|---|---|---|---|---|
-| `/` | 98 / 98 / 98 | **98** | 1.09 s | 2.29 s | 85 ms | 0 | 570 KiB |
-| `/apply/account-type` | 79 / 90 / 89 | **89** | 1.08 s | 2.28 s | 380 ms | 0 | 581 KiB |
+| Route | Median | Min | Max | FCP | LCP | TBT | CLS | Transfer |
+|---|---|---|---|---|---|---|---|---|
+| `/` | **98** | 98 | 99 | 960 ms | 2.30 s | 58 ms | 0 | 272 KiB |
+| `/apply/account-type` | **90** | 84 | 91 | 1.09 s | 3.04 s | 261 ms | 0 | 489 KiB |
 
-A confirming second set of three on the form route scored 82 / 90 / 91 (median
-**90**). Over all six runs the median is 89.5, so the honest statement is that
-the form route **sits on the 90 line rather than above it** — it clears the
-target about half the time and the run-to-run spread (79 to 91) is wider than
-the distance to the target.
+CLS is 0 on every run of both routes. The full record, including the numbers
+these replaced and one change that was measured and reverted, is in
+[`docs/perf/`](docs/perf/).
 
-The same measurement on `yarn build && yarn start`, on a machine simultaneously
-running Chrome and the test runner, gave **94** on `/` and **70** on
-`/apply/account-type`. Two things changed at once between those numbers and the
-ones above — the origin *and* what else the measuring machine was doing — so the
-+19 on the form route cannot be attributed to the deployment alone, and I am not
-going to pretend it can. What can be said is that the deployed numbers are the
-ones a visitor actually gets, and they are the ones quoted here for that reason.
+### The two things that were wrong
 
-CLS is 0 on every run of both routes, deployed and local.
+**The landing page prefetched the entire form.** Its call to action sits in the
+hero, so it is in the viewport at load, so Next prefetched the route it points
+at — the whole engine. 291 KiB requested at 2.3 s, reported 100 % unused, on a
+chunk the page's own HTML never references. `prefetch={false}` was the wrong fix:
+it disables hover as well as viewport, trading the waste for a cold click on the
+primary action. [`StartApplicationLink`](src/components/StartApplicationLink.tsx)
+keeps the prefetch and moves it to the first sign of intent. Transfer 572 → 272
+KiB; the median score did not move, because 98 was already the ceiling.
 
-**Cause, re-measured deployed.** One client chunk of **291 KiB over the wire**
-(brotli; 1.09 MB raw), of which Lighthouse reports **186 KiB unused** on the
-first step, and 1.2 s of main-thread work — 758 ms of it script evaluation. LCP
-is **68 % render delay** and 32 % TTFB; on localhost the split was 91 % render
-delay, because there was no real network latency to occupy the other third. The
-shape of the problem is unchanged: the page is not waiting on the network, it is
-waiting on JavaScript. The single biggest contributor is
-`react-phone-number-input`'s 250-flag SVG barrel, imported wholesale by both the
-engine's `CountryField` and its `PhoneField`.
+**The first step paid for every later step's fields.** `/apply/account-type`
+renders `static`, `radio` and `select`, and was shipping `country`, `phone`,
+`date` and `file` as well — 186 KiB of it unused, the bulk being
+`react-phone-number-input`'s 250-flag SVG barrel, imported wholesale by both
+`CountryField` and `PhoneField`. Those two had to be deferred together: splitting
+one leaves the barrel in the main chunk through the other.
 
-**What was measured and rejected** (locally, against the 70 baseline). Stubbing
-the flag barrel entirely took one run from 60 to 69; dropping the JetBrains Mono
-preload on top of that reached 76. Neither shipped:
+Done through [`registerBuiltInFields`](src/fields/registerBuiltInFields.ts), not
+by editing the engine — deciding which field types a bundle pays for is exactly
+what the registry is for. `ssr` stays on, so the prerendered HTML is unchanged
+and only the client chunk splits. Unused JS on step one: 186 → 24 KiB. TBT 406 →
+261 ms. The route clears 90 at the median for the first time.
 
-- The flag stub deletes the flags from **both** country selectors — the country
-  field and the phone field — for five points. On a form whose entire subject is
-  which country you live in, that is the wrong trade.
-- The font delta did not survive repetition. FCP is bimodal at roughly 1.1 s /
-  3.0 s whether or not mono is preloaded, so the flattering single-run reading
-  was noise, and the change was reverted rather than kept with a confident
-  comment attached. **That bimodality reproduced on the deployed origin**: five
-  of six form-route runs landed at 0.9–1.1 s FCP and one at 2.9 s, and that one
-  is the 82. The other low run, the 79, had a perfectly normal 1.1 s FCP and lost
-  its points to a 3.9 s LCP instead — so the two outliers do not share a cause,
-  and neither of them is worth a fix aimed at the other.
+### The part that was measured wrong first
 
-**Why the remaining gap stands.** Closing it means not shipping the form engine
-to first paint — deferring the thing the demo exists to demonstrate behind a
-spinner to win a synthetic score. I took the working form. Deployment has since
-carried the route to the edge of the target on its own, which does not change
-that judgement, only the size of what is left.
+A split chunk is fetched during the navigation that needs it, so the shell warms
+all four in advance. The first version warmed on `requestIdleCallback`, and the
+deployed measurement rejected it outright:
 
-Measured with Lighthouse 12.8.2, mobile form factor, default simulated
-throttling (150 ms RTT, 1.6 Mbps, 4× CPU), headless Chrome, nothing else running
-on the machine. The localhost figures quoted for comparison were taken with the
-same tool and settings against `yarn build && yarn start`, on a machine that was
-also running Chrome and the test runner.
+| | Unsplit | Split + idle warm | Split + interaction warm |
+|---|---|---|---|
+| Transfer | 577 KiB | 591 KiB | **489 KiB** |
+| TBT | 406 ms | 460 ms | **261 ms** |
+
+Idle arrives early on a page this small — inside the window blocking time is
+measured over — so the first step split four chunks out and then parsed all four
+while it was still becoming interactive. **Worse than not splitting at all.**
+Warming on the visitor's first interaction is what turned it into a gain: a human
+touching step one means the main thread is no longer contended, and answering it
+takes far longer than fetching four small chunks.
+
+### What is still open
+
+**LCP on the form route moved the wrong way**: 2.28 s → 3.04 s at the median.
+The ranges overlap heavily (2.14–3.79 s before, 1.83–3.49 s now — both the best
+and the worst run improved), nothing in the change plausibly delays an element
+that was never deferred, and five samples place a median almost anywhere inside a
+spread that wide. It is recorded as unresolved rather than explained away, and it
+is the first thing to look at next.
+
+The route's floor is still 84, so the spread remains wider than the distance to
+the target. That was the honest summary before this work and it still is — the
+difference is that the median is now on the right side of it.
+
+Measured with Lighthouse 13.4.1, mobile form factor, default simulated throttling
+(150 ms RTT, 1.6 Mbps, 4× CPU), headless Chrome, a fresh browser per run.
 
 ---
 

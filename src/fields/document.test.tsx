@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { FormRenderer } from "@/form-builder/components/FormRenderer";
 import type { FormConfig } from "@/form-builder/core/types";
+import { loadDocumentField } from "./deferred";
 import { registerBuiltInFields } from "./registerBuiltInFields";
 
 /**
@@ -33,8 +34,24 @@ const config: FormConfig = {
   ],
 };
 
-function renderField() {
-  return render(<FormRenderer config={config} onSubmit={() => {}} />);
+/**
+ * `file` is code-split — see `src/fields/deferred.ts` — so the component the
+ * registry hands back is a `next/dynamic` wrapper, and it renders nothing on the
+ * first pass. Loading the module up front makes the import cache warm; the
+ * `act` flush inside `renderField` is what lets React commit the resolved
+ * component before a test goes looking for its file input.
+ *
+ * This is the deferral being asserted rather than worked around: a field that
+ * arrives a tick late is exactly what production now does.
+ */
+beforeAll(async () => {
+  await loadDocumentField();
+});
+
+async function renderField() {
+  const result = render(<FormRenderer config={config} onSubmit={() => {}} />);
+  await act(async () => {});
+  return result;
 }
 
 function fileInput(): HTMLInputElement {
@@ -70,7 +87,7 @@ describe("the document field", () => {
    * it was refused, in its own row.
    */
   it("keeps a rejected file, explains it, and never starts an upload for it", async () => {
-    renderField();
+    await renderField();
 
     attach([new File(["x"], "scan.tiff", { type: "image/tiff" })]);
 
@@ -91,7 +108,7 @@ describe("the document field", () => {
    */
   it("runs a simulated upload for an accepted file and then settles on Attached", async () => {
     vi.useFakeTimers();
-    renderField();
+    await renderField();
 
     attach([pdf()]);
     // Lets the eager `trigger` resolve: the upload starts on the far side of
@@ -122,7 +139,7 @@ describe("the document field", () => {
    * document they meant to attach.
    */
   it("says so when a single-file field has no room for what was dropped on it", async () => {
-    renderField();
+    await renderField();
 
     attach([pdf("first.pdf"), pdf("second.pdf")]);
 
@@ -137,7 +154,7 @@ describe("the document field", () => {
    */
   it("stops the simulated upload when its file is removed", async () => {
     vi.useFakeTimers();
-    renderField();
+    await renderField();
 
     attach([pdf()]);
     await act(async () => {});

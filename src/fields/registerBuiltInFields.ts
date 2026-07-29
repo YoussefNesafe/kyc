@@ -1,17 +1,15 @@
+import dynamic from "next/dynamic";
 import { registerField } from "@/form-builder/core/registry";
 import { CheckboxField } from "@/form-builder/fields/CheckboxField";
-import { CountryField } from "@/form-builder/fields/CountryField";
-import { DateField } from "@/form-builder/fields/DateField";
 import { GroupField } from "@/form-builder/fields/GroupField";
 import { HiddenField } from "@/form-builder/fields/HiddenField";
 import { MaskedField } from "@/form-builder/fields/MaskedField";
-import { PhoneField } from "@/form-builder/fields/PhoneField";
 import { RadioField } from "@/form-builder/fields/RadioField";
 import { SelectField } from "@/form-builder/fields/SelectField";
 import { StaticField } from "@/form-builder/fields/StaticField";
 import { SubmitField } from "@/form-builder/fields/SubmitField";
 import { TextField } from "@/form-builder/fields/TextField";
-import { DocumentField } from "./document";
+import { loadCountryField, loadDateField, loadDocumentField, loadPhoneField } from "./deferred";
 import { withFormHandle } from "./formHandle";
 
 /**
@@ -66,15 +64,33 @@ import { withFormHandle } from "./formHandle";
  * `registerBuiltInFields()` then overwrites each entry with the same value
  * rather than a fresh wrapper, which would remount every field on screen.
  */
+/*
+ * Four of these are code-split, and the wrapping order is the reason it works.
+ *
+ * `withFormHandle` is applied OUTSIDE `dynamic`, not inside the loader. The
+ * wrapper's only job is to publish the form instance into the shell's sink from
+ * a mount effect, and wrapping outside means it mounts — and publishes — while
+ * the real component is still in flight. Wrapped the other way round, the shell
+ * would have no handle until the chunk landed, and "Fill with sample data"
+ * would be dead for exactly as long as the network took.
+ *
+ * `ssr` is left at its default of `true`. These routes are statically
+ * prerendered, and switching it off would empty the server-rendered HTML of
+ * every deferred field — trading a bundle win for a blank first paint on the
+ * steps that use them. Splitting the CLIENT chunk is the whole objective; the
+ * server render should not change at all.
+ *
+ * See `./deferred.ts` for which four and why those four.
+ */
 const Text = withFormHandle(TextField);
 const Masked = withFormHandle(MaskedField);
-const Phone = withFormHandle(PhoneField);
+const Phone = withFormHandle(dynamic(loadPhoneField));
 const Select = withFormHandle(SelectField);
 const Radio = withFormHandle(RadioField);
 const Checkbox = withFormHandle(CheckboxField);
-const DateInput = withFormHandle(DateField);
-const Country = withFormHandle(CountryField);
-const Document = withFormHandle(DocumentField);
+const DateInput = withFormHandle(dynamic(loadDateField));
+const Country = withFormHandle(dynamic(loadCountryField));
+const Document = withFormHandle(dynamic(loadDocumentField));
 const Group = withFormHandle(GroupField);
 const Static = withFormHandle(StaticField);
 const Hidden = withFormHandle(HiddenField);

@@ -10,6 +10,7 @@ import {
 import { furthestAvailableStep } from "@/config/progress";
 import { stepPath } from "@/config/routes";
 import { STEP_SLUGS, slugForStepIndex, stepIndexForSlug } from "@/config/steps";
+import { DEFERRED_FIELD_LOADERS } from "@/fields/deferred";
 import { FormHandleProvider, type FormHandle } from "@/fields/formHandle";
 import { registerBuiltInFields } from "@/fields/registerBuiltInFields";
 import { draftConfigHash, loadDraft } from "@/form-builder/core/autosave";
@@ -246,6 +247,46 @@ export function ApplicationShell() {
   // window between the engine's move and the URL catching up down to a frame.
   useEffect(() => {
     for (const stepSlug of STEP_SLUGS) routerRef.current.prefetch(stepPath(stepSlug));
+  }, []);
+
+  /**
+   * The same idea for the field components the first step does not render.
+   *
+   * `country`, `phone`, `date` and `file` are code-split (see
+   * `src/fields/deferred.ts`), which is what keeps the 250-flag SVG barrel and
+   * the date picker out of step one's bundle. The cost of that split, left
+   * alone, is paid on the step that first needs one: the chunk is requested
+   * during the navigation and the field pops in behind it.
+   *
+   * So the split is undone in time rather than in space. Prefetching the routes
+   * above is the expensive part of arriving at step two; this rides along behind
+   * it and puts the field modules in the module cache while the visitor is still
+   * reading step one. By the time Next is asked to render one, `import()`
+   * resolves from cache and there is nothing to wait for.
+   *
+   * `requestIdleCallback` so none of this competes with making the FIRST step
+   * interactive — that is the whole point of having split them. Safari still has
+   * no `requestIdleCallback`, hence the `setTimeout` fallback; the delay is
+   * arbitrary and only needs to be past the first paint.
+   */
+  useEffect(() => {
+    const warm = () => {
+      for (const load of DEFERRED_FIELD_LOADERS) {
+        // A failed warm is not an error: the component is still registered and
+        // will load on demand when the step that needs it renders. Swallowing
+        // it here keeps a flaky network from putting an unhandled rejection in
+        // the console of a page that is working correctly.
+        void load().catch(() => {});
+      }
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+      const handle = window.requestIdleCallback(warm);
+      return () => window.cancelIdleCallback(handle);
+    }
+
+    const handle = window.setTimeout(warm, 1_500);
+    return () => window.clearTimeout(handle);
   }, []);
 
   /**
